@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SangPlus CRM Backend MVP
 
-## Getting Started
+Backend for a learning center CRM built with Next.js App Router, TypeScript, Prisma, and PostgreSQL.
 
-First, run the development server:
+## What Is Ready
+
+- Prisma schema
+- Prisma client setup
+- Auth with username + password
+- Bootstrap route for first `OWNER`
+- Role-based access for `OWNER`, `MANAGER`, `TEACHER`
+- API routes for students, teachers, groups, lessons, attendance, and payments
+- Overdue payment detection and reminder text logic
+
+## Environment
+
+Create `.env` from `.env.example`.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Required variables:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/sangplus_crm?schema=public"
+AUTH_SECRET="replace-with-a-long-random-secret"
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Setup
 
-## Learn More
+```bash
+npm install
+npm run db:generate
+npm run db:migrate -- --name init
+npm run db:seed
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Demo Users
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+These users are created by the seed script:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `owner_sangplus` / `Owner123`
+- `manager_sangplus` / `Manager123`
+- `teacher_diyora` / `Teacher123`
 
-## Deploy on Vercel
+## Useful Commands
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run db:generate
+npm run db:migrate -- --name init
+npm run db:seed
+npm run lint
+```

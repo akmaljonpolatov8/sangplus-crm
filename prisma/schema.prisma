@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  TEACHER
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+model User {
+  id                 String          @id @default(cuid())
+  username           String          @unique
+  passwordHash       String
+  fullName           String
+  role               Role
+  isActive           Boolean         @default(true)
+  groups             Group[]
+  startedLessons     LessonSession[] @relation("LessonStartedBy")
+  recordedAttendance Attendance[]    @relation("AttendanceRecordedBy")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([role, isActive])
+}
+
+model Student {
+  id          String          @id @default(cuid())
+  firstName   String
+  lastName    String
+  phone       String?
+  parentPhone String
+  parentName  String?
+  notes       String?
+  status      StudentStatus   @default(ACTIVE)
+  groups      GroupStudent[]
+  attendances Attendance[]
+  payments    Payment[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([status])
+  @@index([lastName, firstName])
+  @@index([parentPhone])
+}
+
+model Group {
+  id            String          @id @default(cuid())
+  name          String
+  subject       String?
+  scheduleDays  String[]
+  startTime     String?
+  endTime       String?
+  monthlyFee    Decimal         @db.Decimal(10, 2)
+  isActive      Boolean         @default(true)
+  teacherId     String?
+  teacher       User?           @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  students      GroupStudent[]
+  lessons       LessonSession[]
+  payments      Payment[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([teacherId, isActive])
+}
+
+model GroupStudent {
+  id        String    @id @default(cuid())
+  groupId   String
+  studentId String
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, studentId])
+  @@index([studentId])
+}
+
+model LessonSession {
+  id          String       @id @default(cuid())
+  groupId     String
+  startedById String
+  lessonDate  DateTime     @db.Date
+  startedAt   DateTime     @default(now())
+  notes       String?
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  startedBy   User         @relation("LessonStartedBy", fields: [startedById], references: [id], onDelete: Restrict)
+  attendance  Attendance[]
+
+  @@unique([groupId, lessonDate])
+  @@index([startedById])
+}
+
+model Attendance {
+  id         String           @id @default(cuid())
+  lessonId   String
+  studentId  String
+  markedById String
+  status     AttendanceStatus
+  notes      String?
+  markedAt   DateTime         @default(now())
+  lesson     LessonSession    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student    Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  markedBy   User             @relation("AttendanceRecordedBy", fields: [markedById], references: [id], onDelete: Restrict)
+
+  @@unique([lessonId, studentId])
+  @@index([studentId, status])
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  studentId    String
+  groupId      String
+  billingMonth DateTime      @db.Date
+  dueDate      DateTime      @db.Date
+  amount       Decimal       @db.Decimal(10, 2)
+  paidAmount   Decimal?      @db.Decimal(10, 2)
+  status       PaymentStatus @default(UNPAID)
+  paidAt       DateTime?
+  notes        String?
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group        Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([studentId, groupId, billingMonth])
+  @@index([status, dueDate])
+  @@index([studentId, dueDate])
+}
