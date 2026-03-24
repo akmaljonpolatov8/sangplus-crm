@@ -139,6 +139,67 @@ Success response:
 }
 ```
 
+### `POST /api/auth/change-password`
+
+Required role:
+
+- `OWNER`
+- `MANAGER`
+- `TEACHER`
+
+Request body:
+
+```json
+{
+  "currentPassword": "Teacher123",
+  "newPassword": "Teacher456"
+}
+```
+
+Success response:
+
+```json
+{
+  "success": true,
+  "message": "Password changed successfully",
+  "data": {
+    "id": "cm9teacher1",
+    "passwordChanged": true
+  },
+  "error": null
+}
+```
+
+### `POST /api/users/[id]/reset-password`
+
+Required role:
+
+- `OWNER`
+
+Request body:
+
+```json
+{
+  "newPassword": "Teacher789"
+}
+```
+
+Success response:
+
+```json
+{
+  "success": true,
+  "message": "User password reset successfully",
+  "data": {
+    "id": "cm9teacher1",
+    "username": "teacher_diyora",
+    "role": "TEACHER",
+    "passwordReset": true
+  },
+  "error": null
+}
+```
+
 ## Students
 
 ### `GET /api/students`

@@ -1,0 +1,54 @@
+@baseUrl = http://localhost:3000
+@json = Content-Type: application/json
+
+### Health Check
+GET {{baseUrl}}/api/health
+
+### Bootstrap First Owner
+POST {{baseUrl}}/api/setup/bootstrap-owner
+{{json}}
+
+{
+  "username": "owner_sangplus",
+  "password": "Owner123",
+  "fullName": "Akmaljon Rahimov"
+}
+
+### Login Owner
+POST {{baseUrl}}/api/auth/login
+{{json}}
+
+{
+  "username": "owner_sangplus",
+  "password": "Owner123"
+}
+
+### Copy token from login response and paste below
+@token = paste-token-here
+@auth = Authorization: Bearer {{token}}
+
+### Current User
+GET {{baseUrl}}/api/auth/me
+{{auth}}
+
+### Change Current User Password
+POST {{baseUrl}}/api/auth/change-password
+{{json}}
+{{auth}}
+
+{
+  "currentPassword": "Owner123",
+  "newPassword": "Owner456"
+}
+
+### Create Manager
+POST {{baseUrl}}/api/managers
+{{json}}
+{{auth}}
+
+{
+  "username": "manager_nodira",
+  "password": "Manager123",
+  "fullName": "Nodira Karimova",
+  "isActive": true
+}
