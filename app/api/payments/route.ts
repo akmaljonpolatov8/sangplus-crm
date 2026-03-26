@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
       studentId: request.nextUrl.searchParams.get("studentId") ?? undefined,
       groupId: request.nextUrl.searchParams.get("groupId") ?? undefined,
       status: request.nextUrl.searchParams.get("status") ?? undefined,
-      billingMonth: request.nextUrl.searchParams.get("billingMonth") ?? undefined,
+      billingMonth:
+        request.nextUrl.searchParams.get("billingMonth") ?? undefined,
       overdueOnly: request.nextUrl.searchParams.get("overdueOnly") ?? undefined,
     });
 
@@ -177,7 +178,11 @@ export async function POST(request: Request) {
       update: {
         amount: new Prisma.Decimal(amount),
         paidAmount: new Prisma.Decimal(paidAmount),
-        paidAt: body.paidAt ? new Date(body.paidAt) : paidAmount > 0 ? new Date() : null,
+        paidAt: body.paidAt
+          ? new Date(body.paidAt)
+          : paidAmount > 0
+            ? new Date()
+            : null,
         dueDate,
         notes: body.notes,
         status,
@@ -189,7 +194,11 @@ export async function POST(request: Request) {
         dueDate,
         amount: new Prisma.Decimal(amount),
         paidAmount: new Prisma.Decimal(paidAmount),
-        paidAt: body.paidAt ? new Date(body.paidAt) : paidAmount > 0 ? new Date() : null,
+        paidAt: body.paidAt
+          ? new Date(body.paidAt)
+          : paidAmount > 0
+            ? new Date()
+            : null,
         notes: body.notes,
         status,
       },
