@@ -52,3 +52,47 @@ POST {{baseUrl}}/api/managers
   "fullName": "Nodira Karimova",
   "isActive": true
 }
+
+### Create Teacher
+POST {{baseUrl}}/api/teachers
+{{json}}
+{{auth}}
+
+{
+  "username": "teacher_sardor",
+  "password": "Teacher123",
+  "fullName": "Sardor Islomov",
+  "isActive": true,
+  "groupIds": []
+}
+
+### Create Group
+POST {{baseUrl}}/api/groups
+{{json}}
+{{auth}}
+
+{
+  "name": "Bio-1",
+  "subject": "Biologiya",
+  "scheduleDays": ["Dushanba", "Chorshanba", "Juma"],
+  "startTime": "16:00",
+  "endTime": "18:00",
+  "monthlyFee": 450000,
+  "isActive": true
+}
+
+### Create Student
+POST {{baseUrl}}/api/students
+{{json}}
+{{auth}}
+
+{
+  "firstName": "Malika",
+  "lastName": "Tursunova",
+  "phone": "998901112233",
+  "parentPhone": "998901110001",
+  "parentName": "Dilfuza opa",
+  "notes": "Tibbiyot yo'nalishiga tayyorlanmoqda",
+  "status": "ACTIVE",
+  "groupIds": []
+}
