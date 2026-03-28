@@ -89,12 +89,19 @@ export default function AttendancePage() {
       groupId,
       lessonDate: toYMD(lessonDate),
     });
+    
+    // Extract from API envelope { success, data: { id, ... } }
+    const createdData =
+      created && typeof created === "object" && "data" in created
+        ? ((created as Record<string, unknown>).data as Record<string, unknown>)
+        : created;
+    
     if (
-      created &&
-      typeof created === "object" &&
-      "id" in (created as Record<string, unknown>)
+      createdData &&
+      typeof createdData === "object" &&
+      "id" in createdData
     ) {
-      return String((created as Record<string, unknown>).id);
+      return String((createdData as Record<string, unknown>).id);
     }
 
     throw new Error("Lesson yaratib bo'lmadi");
