@@ -44,3 +44,25 @@ export function toYMD(input?: Date | string | null): string {
   const dd = String(date.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
+
+export function clearLegacyDashboardCache() {
+  if (typeof window === "undefined") return;
+
+  const keys = [
+    "dashboard_groups_cache",
+    "dashboard_students_cache",
+    "dashboard_attendance_cache",
+    "dashboard_payments_cache",
+    "groups_cache",
+    "students_cache",
+    "attendance_cache",
+    "payments_cache",
+    "mock_groups",
+    "mock_students",
+  ];
+
+  for (const key of keys) {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  }
+}

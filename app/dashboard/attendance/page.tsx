@@ -16,12 +16,13 @@ import {
 } from "@/components/ui/select";
 import {
   attendanceAPI,
+  extractList,
   getApiErrorMessage,
   groupsAPI,
   lessonsAPI,
 } from "@/lib-frontend/api-client";
 import { useRole } from "@/lib-frontend/role-context";
-import { toYMD } from "@/lib-frontend/utils";
+import { clearLegacyDashboardCache, toYMD } from "@/lib-frontend/utils";
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused" | null;
 
@@ -74,14 +75,25 @@ export default function AttendancePage() {
   };
 
   const resolveLessonId = async (): Promise<string> => {
-    const lessons = await lessonsAPI.list({ groupId, lessonDate: toYMD(lessonDate) });
+    const lessons = await lessonsAPI.list({
+      groupId,
+      lessonDate: toYMD(lessonDate),
+    });
     const lessonList = Array.isArray(lessons) ? (lessons as LessonItem[]) : [];
 
-    const matched = lessonList.find((item) => item.groupId === groupId) || lessonList[0];
+    const matched =
+      lessonList.find((item) => item.groupId === groupId) || lessonList[0];
     if (matched?.id) return matched.id;
 
-    const created = await lessonsAPI.create({ groupId, lessonDate: toYMD(lessonDate) });
-    if (created && typeof created === "object" && "id" in (created as Record<string, unknown>)) {
+    const created = await lessonsAPI.create({
+      groupId,
+      lessonDate: toYMD(lessonDate),
+    });
+    if (
+      created &&
+      typeof created === "object" &&
+      "id" in (created as Record<string, unknown>)
+    ) {
       return String((created as Record<string, unknown>).id);
     }
 
@@ -94,7 +106,7 @@ export default function AttendancePage() {
 
     try {
       const groupsData = await groupsAPI.list();
-      setGroups(Array.isArray(groupsData) ? (groupsData as GroupItem[]) : []);
+      setGroups(extractList<GroupItem>(groupsData, ["groups"]));
 
       if (!groupId) {
         setStudents([]);
@@ -103,17 +115,38 @@ export default function AttendancePage() {
 
       const lessonId = await resolveLessonId();
       const attendance = await attendanceAPI.list({ lessonId });
-      const attendanceList = Array.isArray(attendance)
-        ? (attendance as Array<Record<string, unknown>>)
-        : [];
+      const attendanceList = extractList<Record<string, unknown>>(attendance, [
+        "entries",
+        "attendance",
+        "students",
+      ]);
 
       setStudents(
-        attendanceList.map((item) => ({
-          id: String(item.id ?? item.studentId ?? `${item.studentName ?? "unknown"}`),
-          studentId: String(item.studentId ?? item.id ?? ""),
-          studentName: String(item.studentName ?? item.name ?? "Noma'lum"),
-          status: (item.status as AttendanceStatus) || null,
-        })),
+        attendanceList.map((item) => {
+          const nestedStudent =
+            item.student && typeof item.student === "object"
+              ? (item.student as Record<string, unknown>)
+              : null;
+          const nestedName = nestedStudent
+            ? String(
+                nestedStudent.fullName ||
+                  `${nestedStudent.firstName || ""} ${nestedStudent.lastName || ""}`.trim(),
+              )
+            : "";
+
+          const studentId = String(
+            nestedStudent?.id ?? item.studentId ?? item.id ?? "",
+          );
+          const studentName =
+            nestedName || String(item.studentName ?? item.name ?? "Noma'lum");
+
+          return {
+            id: String(item.id ?? studentId ?? `${studentName}-attendance`),
+            studentId,
+            studentName,
+            status: (item.status as AttendanceStatus) || null,
+          };
+        }),
       );
     } catch (err) {
       setError(getApiErrorMessage(err));
@@ -123,13 +156,16 @@ export default function AttendancePage() {
   };
 
   useEffect(() => {
+    clearLegacyDashboardCache();
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, lessonDate]);
 
   const setStatus = (id: string, status: AttendanceStatus) => {
     setStudents((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: s.status === status ? null : status } : s)),
+      prev.map((s) =>
+        s.id === id ? { ...s, status: s.status === status ? null : status } : s,
+      ),
     );
   };
 
@@ -172,11 +208,19 @@ export default function AttendancePage() {
 
   return (
     <div className="min-h-screen">
-      <DashboardHeader title={role === "teacher" ? "Davomat" : "Davomat boshqaruvi"} />
+      <DashboardHeader
+        title={role === "teacher" ? "Davomat" : "Davomat boshqaruvi"}
+      />
 
       <div className="space-y-6 p-6">
-        {error && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
-        {isLoading && <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>}
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        )}
 
         <Card>
           <CardHeader>
@@ -185,7 +229,10 @@ export default function AttendancePage() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Guruh</Label>
-              <Select value={groupId} onValueChange={(value) => updateParams({ groupId: value })}>
+              <Select
+                value={groupId}
+                onValueChange={(value) => updateParams({ groupId: value })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Guruhni tanlang" />
                 </SelectTrigger>
@@ -201,17 +248,41 @@ export default function AttendancePage() {
 
             <div className="space-y-2">
               <Label>lessonDate (YYYY-MM-DD)</Label>
-              <Input type="date" value={lessonDate} onChange={(e) => updateParams({ lessonDate: e.target.value })} />
+              <Input
+                type="date"
+                value={lessonDate}
+                onChange={(e) => updateParams({ lessonDate: e.target.value })}
+              />
             </div>
           </CardContent>
         </Card>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <Card><CardContent className="p-3 text-sm">Jami: {stats.total}</CardContent></Card>
-          <Card><CardContent className="p-3 text-sm text-success">Keldi: {stats.present}</CardContent></Card>
-          <Card><CardContent className="p-3 text-sm text-destructive">Kelmadi: {stats.absent}</CardContent></Card>
-          <Card><CardContent className="p-3 text-sm">Kechikdi: {stats.late}</CardContent></Card>
-          <Card><CardContent className="p-3 text-sm">Sababli: {stats.excused}</CardContent></Card>
+          <Card>
+            <CardContent className="p-3 text-sm">
+              Jami: {stats.total}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-sm text-success">
+              Keldi: {stats.present}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-sm text-destructive">
+              Kelmadi: {stats.absent}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-sm">
+              Kechikdi: {stats.late}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-sm">
+              Sababli: {stats.excused}
+            </CardContent>
+          </Card>
         </div>
 
         <Card>
@@ -225,14 +296,48 @@ export default function AttendancePage() {
             {students.map((student, index) => (
               <div key={student.id} className="rounded-lg border p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="font-medium">{index + 1}. {student.studentName}</span>
-                  <span className="text-xs text-muted-foreground">{student.studentId}</span>
+                  <span className="font-medium">
+                    {index + 1}. {student.studentName}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {student.studentId}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant={student.status === "present" ? "default" : "outline"} onClick={() => setStatus(student.id, "present")}>Keldi</Button>
-                  <Button size="sm" variant={student.status === "absent" ? "default" : "outline"} onClick={() => setStatus(student.id, "absent")}>Kelmadi</Button>
-                  <Button size="sm" variant={student.status === "late" ? "default" : "outline"} onClick={() => setStatus(student.id, "late")}>Kechikdi</Button>
-                  <Button size="sm" variant={student.status === "excused" ? "default" : "outline"} onClick={() => setStatus(student.id, "excused")}>Sababli</Button>
+                  <Button
+                    size="sm"
+                    variant={
+                      student.status === "present" ? "default" : "outline"
+                    }
+                    onClick={() => setStatus(student.id, "present")}
+                  >
+                    Keldi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={
+                      student.status === "absent" ? "default" : "outline"
+                    }
+                    onClick={() => setStatus(student.id, "absent")}
+                  >
+                    Kelmadi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={student.status === "late" ? "default" : "outline"}
+                    onClick={() => setStatus(student.id, "late")}
+                  >
+                    Kechikdi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={
+                      student.status === "excused" ? "default" : "outline"
+                    }
+                    onClick={() => setStatus(student.id, "excused")}
+                  >
+                    Sababli
+                  </Button>
                 </div>
               </div>
             ))}

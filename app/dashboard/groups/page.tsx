@@ -23,9 +23,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
-import { ApiClientError, getApiErrorMessage, groupsAPI } from "@/lib-frontend/api-client";
+import {
+  ApiClientError,
+  extractList,
+  getApiErrorMessage,
+  groupsAPI,
+} from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
-import { formatCurrency } from "@/lib-frontend/utils";
+import {
+  clearLegacyDashboardCache,
+  formatCurrency,
+} from "@/lib-frontend/utils";
 
 interface GroupRecord {
   id: string;
@@ -74,7 +82,6 @@ export default function GroupsPage() {
   const router = useRouter();
   const { role } = useRole();
   const canAccess = hasAccess(role, "groups");
-  const isOwner = role === "owner";
 
   const [groups, setGroups] = useState<GroupRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,7 +98,7 @@ export default function GroupsPage() {
     setError(null);
     try {
       const data = await groupsAPI.list();
-      setGroups(Array.isArray(data) ? (data as GroupRecord[]) : []);
+      setGroups(extractList<GroupRecord>(data, ["groups"]));
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -104,6 +111,7 @@ export default function GroupsPage() {
       router.replace("/dashboard/attendance");
       return;
     }
+    clearLegacyDashboardCache();
     loadGroups();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
@@ -148,7 +156,7 @@ export default function GroupsPage() {
         isActive: formData.isActive === "true",
       };
 
-      if (isOwner && formData.monthlyFee.trim()) {
+      if (formData.monthlyFee.trim()) {
         payload.monthlyFee = Number(formData.monthlyFee);
       }
 
@@ -161,7 +169,11 @@ export default function GroupsPage() {
       setIsDialogOpen(false);
       await loadGroups();
     } catch (err) {
-      if (err instanceof ApiClientError && (err.status === 400 || err.status === 409) && err.fieldErrors) {
+      if (
+        err instanceof ApiClientError &&
+        (err.status === 400 || err.status === 409) &&
+        err.fieldErrors
+      ) {
         setFieldErrors(err.fieldErrors);
       }
       setFormError(getApiErrorMessage(err));
@@ -175,19 +187,24 @@ export default function GroupsPage() {
       {
         key: "name",
         header: "Guruh",
-        render: (group: GroupRecord) => <span className="font-medium">{group.name || "-"}</span>,
+        render: (group: GroupRecord) => (
+          <span className="font-medium">{group.name || "-"}</span>
+        ),
       },
       {
         key: "subject",
         header: "Fan",
-        render: (group: GroupRecord) => <span className="text-muted-foreground">{group.subject || "-"}</span>,
+        render: (group: GroupRecord) => (
+          <span className="text-muted-foreground">{group.subject || "-"}</span>
+        ),
       },
       {
         key: "schedule",
         header: "Jadval",
         render: (group: GroupRecord) => (
           <span className="text-muted-foreground">
-            {(group.scheduleDays || []).join(", ") || "-"} {group.startTime || ""} {group.endTime ? `- ${group.endTime}` : ""}
+            {(group.scheduleDays || []).join(", ") || "-"}{" "}
+            {group.startTime || ""} {group.endTime ? `- ${group.endTime}` : ""}
           </span>
         ),
       },
@@ -195,20 +212,26 @@ export default function GroupsPage() {
         key: "teacher",
         header: "O'qituvchi",
         render: (group: GroupRecord) => (
-          <span className="text-muted-foreground">{group.teacher?.fullName || group.teacherId || "-"}</span>
+          <span className="text-muted-foreground">
+            {group.teacher?.fullName || group.teacherId || "-"}
+          </span>
         ),
       },
       {
         key: "monthlyFee",
         header: "Monthly fee",
         render: (group: GroupRecord) => (
-          <span className="text-muted-foreground">{group.monthlyFee == null ? "-" : formatCurrency(group.monthlyFee)}</span>
+          <span className="text-muted-foreground">
+            {group.monthlyFee == null ? "-" : formatCurrency(group.monthlyFee)}
+          </span>
         ),
       },
       {
         key: "isActive",
         header: "Holati",
-        render: (group: GroupRecord) => <StatusBadge status={group.isActive ? "active" : "inactive"} />,
+        render: (group: GroupRecord) => (
+          <StatusBadge status={group.isActive ? "active" : "inactive"} />
+        ),
       },
       {
         key: "actions",
@@ -243,8 +266,14 @@ export default function GroupsPage() {
       <DashboardHeader title="Guruhlar" />
 
       <div className="space-y-4 p-6">
-        {error && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
-        {isLoading && <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>}
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        )}
 
         <DataTable
           data={groups}
@@ -259,65 +288,143 @@ export default function GroupsPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}</DialogTitle>
-            <DialogDescription>Backend contract: subject, scheduleDays, startTime, endTime, teacherId, isActive.</DialogDescription>
+            <DialogTitle>
+              {formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}
+            </DialogTitle>
+            <DialogDescription>
+              Backend contract: subject, scheduleDays, startTime, endTime,
+              teacherId, isActive.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            {formError && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{formError}</div>}
+            {formError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
+                {formError}
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label htmlFor="name">Nomi</Label>
-              <Input id="name" value={formData.name} onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} />
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }
+              />
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="subject">Fan</Label>
-              <Input id="subject" value={formData.subject} onChange={(e) => setFormData((prev) => ({ ...prev, subject: e.target.value }))} />
+              <Input
+                id="subject"
+                value={formData.subject}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, subject: e.target.value }))
+                }
+              />
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="scheduleDaysText">Schedule days (vergul bilan)</Label>
-              <Input id="scheduleDaysText" value={formData.scheduleDaysText} onChange={(e) => setFormData((prev) => ({ ...prev, scheduleDaysText: e.target.value }))} />
+              <Label htmlFor="scheduleDaysText">
+                Schedule days (vergul bilan)
+              </Label>
+              <Input
+                id="scheduleDaysText"
+                value={formData.scheduleDaysText}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    scheduleDaysText: e.target.value,
+                  }))
+                }
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="startTime">Start time</Label>
-                <Input id="startTime" value={formData.startTime} onChange={(e) => setFormData((prev) => ({ ...prev, startTime: e.target.value }))} />
+                <Input
+                  id="startTime"
+                  value={formData.startTime}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      startTime: e.target.value,
+                    }))
+                  }
+                />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="endTime">End time</Label>
-                <Input id="endTime" value={formData.endTime} onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value }))} />
+                <Input
+                  id="endTime"
+                  value={formData.endTime}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      endTime: e.target.value,
+                    }))
+                  }
+                />
               </div>
             </div>
 
-            {isOwner && (
-              <div className="space-y-1">
-                <Label htmlFor="monthlyFee">Monthly fee</Label>
-                <Input id="monthlyFee" value={formData.monthlyFee} onChange={(e) => setFormData((prev) => ({ ...prev, monthlyFee: e.target.value }))} />
-              </div>
-            )}
+            <div className="space-y-1">
+              <Label htmlFor="monthlyFee">Monthly fee</Label>
+              <Input
+                id="monthlyFee"
+                value={formData.monthlyFee}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    monthlyFee: e.target.value,
+                  }))
+                }
+              />
+            </div>
 
             <div className="space-y-1">
               <Label htmlFor="teacherId">Teacher ID</Label>
-              <Input id="teacherId" value={formData.teacherId} onChange={(e) => setFormData((prev) => ({ ...prev, teacherId: e.target.value }))} />
+              <Input
+                id="teacherId"
+                value={formData.teacherId}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    teacherId: e.target.value,
+                  }))
+                }
+              />
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="isActive">Is active (true/false)</Label>
-              <Input id="isActive" value={formData.isActive} onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.value }))} />
+              <Input
+                id="isActive"
+                value={formData.isActive}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, isActive: e.target.value }))
+                }
+              />
             </div>
 
             {Object.keys(fieldErrors).map((key) => (
-              <p key={key} className="text-xs text-destructive">{fieldErrors[key]}</p>
+              <p key={key} className="text-xs text-destructive">
+                {fieldErrors[key]}
+              </p>
             ))}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Bekor qilish</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Bekor qilish
+            </Button>
             <Button onClick={submitGroup} disabled={isSaving}>
-              {isSaving ? <CircleAlert className="mr-2 size-4 animate-spin" /> : null}
+              {isSaving ? (
+                <CircleAlert className="mr-2 size-4 animate-spin" />
+              ) : null}
               Saqlash
             </Button>
           </DialogFooter>

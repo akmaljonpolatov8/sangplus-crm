@@ -23,7 +23,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
-import { ApiClientError, getApiErrorMessage, teachersAPI } from "@/lib-frontend/api-client";
+import {
+  ApiClientError,
+  getApiErrorMessage,
+  teachersAPI,
+} from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 
 interface TeacherRecord {
@@ -148,7 +152,11 @@ export default function TeachersPage() {
       setIsDialogOpen(false);
       await loadTeachers();
     } catch (err) {
-      if (err instanceof ApiClientError && (err.status === 400 || err.status === 409) && err.fieldErrors) {
+      if (
+        err instanceof ApiClientError &&
+        (err.status === 400 || err.status === 409) &&
+        err.fieldErrors
+      ) {
         setFieldErrors(err.fieldErrors);
       }
       setFormError(getApiErrorMessage(err));
@@ -162,19 +170,27 @@ export default function TeachersPage() {
       {
         key: "username",
         header: "Username",
-        render: (teacher: TeacherRecord) => <span className="font-medium">{teacher.username || "-"}</span>,
+        render: (teacher: TeacherRecord) => (
+          <span className="font-medium">{teacher.username || "-"}</span>
+        ),
       },
       {
         key: "fullName",
         header: "F.I.Sh",
-        render: (teacher: TeacherRecord) => <span className="text-muted-foreground">{teacher.fullName || "-"}</span>,
+        render: (teacher: TeacherRecord) => (
+          <span className="text-muted-foreground">
+            {teacher.fullName || "-"}
+          </span>
+        ),
       },
       {
         key: "groups",
         header: "Guruhlar",
         render: (teacher: TeacherRecord) => (
           <span className="text-muted-foreground">
-            {teacher.groups?.map((g) => g.name || g.id).join(", ") || teacher.groupIds?.join(", ") || "-"}
+            {teacher.groups?.map((g) => g.name || g.id).join(", ") ||
+              teacher.groupIds?.join(", ") ||
+              "-"}
           </span>
         ),
       },
@@ -218,8 +234,14 @@ export default function TeachersPage() {
       <DashboardHeader title="O'qituvchilar" />
 
       <div className="space-y-4 p-6">
-        {error && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
-        {isLoading && <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>}
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        )}
 
         <DataTable
           data={teachers}
@@ -234,47 +256,98 @@ export default function TeachersPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{formData.id ? "O'qituvchini tahrirlash" : "Yangi o'qituvchi"}</DialogTitle>
-            <DialogDescription>Backend contract: username, password, fullName, isActive, groupIds.</DialogDescription>
+            <DialogTitle>
+              {formData.id ? "O'qituvchini tahrirlash" : "Yangi o'qituvchi"}
+            </DialogTitle>
+            <DialogDescription>
+              Backend contract: username, password, fullName, isActive,
+              groupIds.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            {formError && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{formError}</div>}
+            {formError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
+                {formError}
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label htmlFor="username">Username</Label>
-              <Input id="username" value={formData.username} onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))} />
+              <Input
+                id="username"
+                value={formData.username}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, username: e.target.value }))
+                }
+              />
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="password">Password {formData.id ? "(ixtiyoriy)" : ""}</Label>
-              <Input id="password" type="password" value={formData.password} onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))} />
+              <Label htmlFor="password">
+                Password {formData.id ? "(ixtiyoriy)" : ""}
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, password: e.target.value }))
+                }
+              />
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="fullName">Full name</Label>
-              <Input id="fullName" value={formData.fullName} onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))} />
+              <Input
+                id="fullName"
+                value={formData.fullName}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, fullName: e.target.value }))
+                }
+              />
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="isActive">Is active (true/false)</Label>
-              <Input id="isActive" value={formData.isActive} onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.value }))} />
+              <Input
+                id="isActive"
+                value={formData.isActive}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, isActive: e.target.value }))
+                }
+              />
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="groupIdsText">Group IDs (vergul bilan)</Label>
-              <Input id="groupIdsText" value={formData.groupIdsText} onChange={(e) => setFormData((prev) => ({ ...prev, groupIdsText: e.target.value }))} />
+              <Input
+                id="groupIdsText"
+                value={formData.groupIdsText}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    groupIdsText: e.target.value,
+                  }))
+                }
+              />
             </div>
 
             {Object.keys(fieldErrors).map((key) => (
-              <p key={key} className="text-xs text-destructive">{fieldErrors[key]}</p>
+              <p key={key} className="text-xs text-destructive">
+                {fieldErrors[key]}
+              </p>
             ))}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Bekor qilish</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Bekor qilish
+            </Button>
             <Button onClick={submitTeacher} disabled={isSaving}>
-              {isSaving ? <CircleAlert className="mr-2 size-4 animate-spin" /> : null}
+              {isSaving ? (
+                <CircleAlert className="mr-2 size-4 animate-spin" />
+              ) : null}
               Saqlash
             </Button>
           </DialogFooter>

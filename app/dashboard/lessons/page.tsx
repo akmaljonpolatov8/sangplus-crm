@@ -7,7 +7,10 @@ import { DataTable } from "@/components/dashboard/data-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiErrorMessage, lessonsAPI } from "../../../lib-frontend/api-client";
+import {
+  getApiErrorMessage,
+  lessonsAPI,
+} from "../../../lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 import { toYMD } from "@/lib-frontend/utils";
 

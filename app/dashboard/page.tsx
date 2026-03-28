@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  extractList,
   getApiErrorMessage,
   groupsAPI,
   paymentsAPI,
@@ -24,9 +25,11 @@ interface DashboardTotals {
 }
 
 interface SummaryTotals {
+  expectedAmount?: number | string;
+  collectedAmount?: number | string;
+  debtAmount?: number | string;
   totalAmount?: number | string;
   paidAmount?: number | string;
-  debtAmount?: number | string;
 }
 
 export default function DashboardPage() {
@@ -38,7 +41,9 @@ export default function DashboardPage() {
     groups: 0,
     payments: 0,
   });
-  const [summaryTotals, setSummaryTotals] = useState<SummaryTotals | null>(null);
+  const [summaryTotals, setSummaryTotals] = useState<SummaryTotals | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,23 +61,37 @@ export default function DashboardPage() {
       setError(null);
 
       try {
-        const [students, teachers, groups, payments, paymentsSummary] = await Promise.all([
+        const [students, teachers, groups, payments] = await Promise.all([
           studentsAPI.list(),
           teachersAPI.list(),
           groupsAPI.list(),
           paymentsAPI.list({ billingMonth: toYMD(new Date()) }),
-          paymentsAPI.summary({ billingMonth: toYMD(new Date()) }),
         ]);
 
+        const studentList = extractList(students, ["students"]);
+        const teacherList = extractList(teachers, ["teachers"]);
+        const groupList = extractList<{ id?: string }>(groups, ["groups"]);
+        const paymentList = extractList(payments, ["payments"]);
+
         setTotals({
-          students: Array.isArray(students) ? students.length : 0,
-          teachers: Array.isArray(teachers) ? teachers.length : 0,
-          groups: Array.isArray(groups) ? groups.length : 0,
-          payments: Array.isArray(payments) ? payments.length : 0,
+          students: studentList.length,
+          teachers: teacherList.length,
+          groups: groupList.length,
+          payments: paymentList.length,
         });
 
-        const summaryLike = paymentsSummary as { totals?: SummaryTotals };
-        setSummaryTotals(summaryLike.totals || null);
+        const summaryGroupId = groupList[0]?.id;
+
+        if (summaryGroupId) {
+          const paymentsSummary = await paymentsAPI.summary({
+            groupId: summaryGroupId,
+            billingMonth: toYMD(new Date()),
+          });
+          const summaryLike = paymentsSummary as { totals?: SummaryTotals };
+          setSummaryTotals(summaryLike.totals || null);
+        } else {
+          setSummaryTotals(null);
+        }
       } catch (err) {
         setError(getApiErrorMessage(err));
       } finally {
@@ -99,12 +118,16 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {isLoading && <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>}
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">O'quvchilar</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">
+                O'quvchilar
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-semibold">{totals.students}</p>
@@ -113,7 +136,9 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">O'qituvchilar</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">
+                O'qituvchilar
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-semibold">{totals.teachers}</p>
@@ -122,7 +147,9 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Guruhlar</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">
+                Guruhlar
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-semibold">{totals.groups}</p>
@@ -131,7 +158,9 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">Payment yozuvlari</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">
+                Payment yozuvlari
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-semibold">{totals.payments}</p>
@@ -151,19 +180,31 @@ export default function DashboardPage() {
               <div className="rounded-lg border p-3">
                 <p className="text-xs text-muted-foreground">Jami amount</p>
                 <p className="text-lg font-semibold">
-                  {canSeeAmounts ? formatCurrency(summaryTotals?.totalAmount) : "Yashirilgan"}
+                  {canSeeAmounts
+                    ? formatCurrency(
+                        summaryTotals?.expectedAmount ??
+                          summaryTotals?.totalAmount,
+                      )
+                    : "Yashirilgan"}
                 </p>
               </div>
               <div className="rounded-lg border p-3">
                 <p className="text-xs text-muted-foreground">Jami tushum</p>
                 <p className="text-lg font-semibold text-success">
-                  {canSeeAmounts ? formatCurrency(summaryTotals?.paidAmount) : "Yashirilgan"}
+                  {canSeeAmounts
+                    ? formatCurrency(
+                        summaryTotals?.collectedAmount ??
+                          summaryTotals?.paidAmount,
+                      )
+                    : "Yashirilgan"}
                 </p>
               </div>
               <div className="rounded-lg border p-3">
                 <p className="text-xs text-muted-foreground">Jami qarz</p>
                 <p className="text-lg font-semibold text-destructive">
-                  {canSeeAmounts ? formatCurrency(summaryTotals?.debtAmount) : "Yashirilgan"}
+                  {canSeeAmounts
+                    ? formatCurrency(summaryTotals?.debtAmount)
+                    : "Yashirilgan"}
                 </p>
               </div>
             </CardContent>

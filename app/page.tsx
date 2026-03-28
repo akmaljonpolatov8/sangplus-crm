@@ -39,7 +39,11 @@ const roles: {
 
 function toUserRole(role: string): UserRole {
   const normalized = role.trim().toLowerCase();
-  if (normalized === "owner" || normalized === "manager" || normalized === "teacher") {
+  if (
+    normalized === "owner" ||
+    normalized === "manager" ||
+    normalized === "teacher"
+  ) {
     return normalized;
   }
   return "manager";

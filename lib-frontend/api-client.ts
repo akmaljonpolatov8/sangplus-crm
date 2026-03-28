@@ -1,4 +1,5 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const REQUEST_TIMEOUT_MS = 15000;
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -42,7 +43,11 @@ function extractFieldErrors(
       out[key] = value;
       continue;
     }
-    if (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") {
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      typeof value[0] === "string"
+    ) {
       out[key] = value[0];
     }
   }
@@ -104,7 +109,43 @@ export async function apiClient<T = unknown>(
     fetchOptions.body = JSON.stringify(options.data);
   }
 
-  const response = await fetch(url, fetchOptions);
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(
+    () => timeoutController.abort(),
+    REQUEST_TIMEOUT_MS,
+  );
+
+  if (options.signal) {
+    if (options.signal.aborted) {
+      timeoutController.abort();
+    } else {
+      options.signal.addEventListener(
+        "abort",
+        () => timeoutController.abort(),
+        {
+          once: true,
+        },
+      );
+    }
+  }
+
+  fetchOptions.signal = timeoutController.signal;
+
+  let response: Response;
+  try {
+    response = await fetch(url, fetchOptions);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiClientError(
+        "Server javob bermadi (timeout). Backend ishga tushganini tekshiring.",
+        408,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   const payload = await response.json().catch(() => ({
     success: false,
     message: "Invalid JSON response",
@@ -116,10 +157,17 @@ export async function apiClient<T = unknown>(
 
   if (!success) {
     const status = response.status;
+    const errorObjectMessage =
+      envelope.error &&
+      typeof envelope.error === "object" &&
+      "message" in envelope.error &&
+      typeof envelope.error.message === "string"
+        ? envelope.error.message
+        : null;
     const messageFromError =
       typeof envelope.error === "string"
         ? envelope.error
-        : envelope.message || `API xato: ${status}`;
+        : errorObjectMessage || envelope.message || `API xato: ${status}`;
 
     const finalMessage =
       status === 403
@@ -169,11 +217,63 @@ export function apiPatch<T = unknown>(
   });
 }
 
-export function apiDelete<T = unknown>(endpoint: string, options?: FetchOptions) {
+export function apiDelete<T = unknown>(
+  endpoint: string,
+  options?: FetchOptions,
+) {
   return apiClient<T>(endpoint, {
     ...options,
     method: "DELETE",
   });
+}
+
+export function extractList<T>(
+  payload: unknown,
+  preferredKeys: string[] = [],
+): T[] {
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const obj = payload as Record<string, unknown>;
+  const keysToTry = [
+    ...preferredKeys,
+    "data",
+    "items",
+    "rows",
+    "results",
+    "list",
+    "groups",
+    "students",
+    "payments",
+    "entries",
+    "attendance",
+  ];
+
+  for (const key of keysToTry) {
+    const value = obj[key];
+    if (Array.isArray(value)) {
+      return value as T[];
+    }
+    if (value && typeof value === "object") {
+      const nested = value as Record<string, unknown>;
+      if (Array.isArray(nested.items)) {
+        return nested.items as T[];
+      }
+      if (Array.isArray(nested.rows)) {
+        return nested.rows as T[];
+      }
+      if (Array.isArray(nested.data)) {
+        return nested.data as T[];
+      }
+    }
+  }
+
+  return [];
 }
 
 export interface LoginResponse {
@@ -250,9 +350,9 @@ export const paymentsAPI = {
     return apiGet(`/api/payments${query ? `?${query}` : ""}`);
   },
 
-  summary: (params: { groupId?: string; billingMonth: string }) => {
+  summary: (params: { groupId: string; billingMonth: string }) => {
     const search = new URLSearchParams();
-    if (params.groupId) search.set("groupId", params.groupId);
+    search.set("groupId", params.groupId);
     search.set("billingMonth", params.billingMonth);
     return apiGet(`/api/payments/summary?${search.toString()}`);
   },
@@ -265,7 +365,11 @@ export const paymentsAPI = {
 };
 
 export const attendanceAPI = {
-  list: (params?: { lessonDate?: string; groupId?: string; lessonId?: string }) => {
+  list: (params?: {
+    lessonDate?: string;
+    groupId?: string;
+    lessonId?: string;
+  }) => {
     const search = new URLSearchParams();
     if (params?.lessonDate) search.set("lessonDate", params.lessonDate);
     if (params?.groupId) search.set("groupId", params.groupId);

@@ -1,26 +1,31 @@
-import { cn } from "@/lib-frontend/utils"
+import { cn } from "@/lib-frontend/utils";
 
-type StatusType = 
-  | "active" 
-  | "inactive" 
-  | "paid" 
-  | "unpaid" 
-  | "partial" 
+type StatusType =
+  | "active"
+  | "graduated"
+  | "inactive"
+  | "paid"
+  | "unpaid"
+  | "partial"
   | "overdue"
   | "present"
   | "absent"
   | "late"
-  | "excused"
+  | "excused";
 
 interface StatusBadgeProps {
-  status: StatusType
-  className?: string
+  status: StatusType;
+  className?: string;
 }
 
 const statusConfig: Record<StatusType, { label: string; className: string }> = {
   active: {
     label: "Faol",
     className: "bg-success/15 text-success border-success/25",
+  },
+  graduated: {
+    label: "Bitirgan",
+    className: "bg-chart-4/15 text-chart-4 border-chart-4/25",
   },
   inactive: {
     label: "Nofaol",
@@ -58,20 +63,20 @@ const statusConfig: Record<StatusType, { label: string; className: string }> = {
     label: "Sababli",
     className: "bg-chart-2/15 text-chart-2 border-chart-2/25",
   },
-}
+};
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
-  const config = statusConfig[status]
+  const config = statusConfig[status];
 
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-medium",
         config.className,
-        className
+        className,
       )}
     >
       {config.label}
     </span>
-  )
+  );
 }
