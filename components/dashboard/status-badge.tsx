@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib-frontend/utils"
 
 type StatusType = 
   | "active" 

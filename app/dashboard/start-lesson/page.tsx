@@ -1,53 +1,71 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { useRole } from "@/lib/role-context"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardHeader } from "@/components/dashboard/header";
+import { useRole } from "@/lib-frontend/role-context";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { PlayCircle, Users, Clock, BookOpen, CheckCircle } from "lucide-react"
+} from "@/components/ui/select";
+import { PlayCircle, Users, Clock, BookOpen, CheckCircle } from "lucide-react";
 
 const teacherGroups = [
-  { id: "1", name: "Kimyo 101", students: 12, time: "09:00 - 10:30", room: "201-xona" },
-  { id: "2", name: "Kimyo 102", students: 15, time: "11:00 - 12:30", room: "201-xona" },
-  { id: "3", name: "Kimyo 103", students: 10, time: "14:00 - 15:30", room: "203-xona" },
-]
+  {
+    id: "1",
+    name: "Kimyo 101",
+    students: 12,
+    time: "09:00 - 10:30",
+    room: "201-xona",
+  },
+  {
+    id: "2",
+    name: "Kimyo 102",
+    students: 15,
+    time: "11:00 - 12:30",
+    room: "201-xona",
+  },
+  {
+    id: "3",
+    name: "Kimyo 103",
+    students: 10,
+    time: "14:00 - 15:30",
+    room: "203-xona",
+  },
+];
 
 export default function StartLessonPage() {
-  const router = useRouter()
-  const { role, userName } = useRole()
-  const [selectedGroup, setSelectedGroup] = useState<string>("")
-  const [isStarted, setIsStarted] = useState(false)
+  const router = useRouter();
+  const { role, userName } = useRole();
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [isStarted, setIsStarted] = useState(false);
 
   // Only teachers can access this page
   useEffect(() => {
     if (role !== "teacher") {
-      router.replace("/dashboard")
+      router.replace("/dashboard");
     }
-  }, [role, router])
+  }, [role, router]);
 
   if (role !== "teacher") {
-    return null
+    return null;
   }
 
   const handleStartLesson = () => {
-    if (!selectedGroup) return
-    setIsStarted(true)
+    if (!selectedGroup) return;
+    setIsStarted(true);
     // In real app, would navigate to attendance page for this group
     setTimeout(() => {
-      router.push("/dashboard/attendance")
-    }, 1500)
-  }
+      router.push("/dashboard/attendance");
+    }, 1500);
+  };
 
-  const selectedGroupData = teacherGroups.find(g => g.id === selectedGroup)
+  const selectedGroupData = teacherGroups.find((g) => g.id === selectedGroup);
 
   return (
     <div className="min-h-screen">
@@ -76,7 +94,9 @@ export default function StartLessonPage() {
         {/* Group Selection */}
         <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-base font-semibold">Guruhni tanlang</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              Guruhni tanlang
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Select value={selectedGroup} onValueChange={setSelectedGroup}>
@@ -88,7 +108,9 @@ export default function StartLessonPage() {
                   <SelectItem key={group.id} value={group.id}>
                     <div className="flex items-center gap-3">
                       <span className="font-medium">{group.name}</span>
-                      <span className="text-muted-foreground">({group.students} o&apos;quvchi)</span>
+                      <span className="text-muted-foreground">
+                        ({group.students} o&apos;quvchi)
+                      </span>
                     </div>
                   </SelectItem>
                 ))}
@@ -99,26 +121,40 @@ export default function StartLessonPage() {
             {selectedGroupData && (
               <div className="rounded-xl bg-secondary/30 p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Guruh nomi:</span>
-                  <span className="font-medium text-foreground">{selectedGroupData.name}</span>
+                  <span className="text-sm text-muted-foreground">
+                    Guruh nomi:
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {selectedGroupData.name}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">O&apos;quvchilar soni:</span>
+                  <span className="text-sm text-muted-foreground">
+                    O&apos;quvchilar soni:
+                  </span>
                   <div className="flex items-center gap-2">
                     <Users className="size-4 text-primary" />
-                    <span className="font-medium text-foreground">{selectedGroupData.students} ta</span>
+                    <span className="font-medium text-foreground">
+                      {selectedGroupData.students} ta
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Dars vaqti:</span>
+                  <span className="text-sm text-muted-foreground">
+                    Dars vaqti:
+                  </span>
                   <div className="flex items-center gap-2">
                     <Clock className="size-4 text-chart-2" />
-                    <span className="font-medium text-foreground">{selectedGroupData.time}</span>
+                    <span className="font-medium text-foreground">
+                      {selectedGroupData.time}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Xona:</span>
-                  <span className="font-medium text-foreground">{selectedGroupData.room}</span>
+                  <span className="font-medium text-foreground">
+                    {selectedGroupData.room}
+                  </span>
                 </div>
               </div>
             )}
@@ -147,7 +183,9 @@ export default function StartLessonPage() {
         {/* Today's Schedule */}
         <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-base font-semibold">Bugungi jadval</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              Bugungi jadval
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -161,13 +199,19 @@ export default function StartLessonPage() {
                       {index + 1}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{group.name}</p>
-                      <p className="text-sm text-muted-foreground">{group.room}</p>
+                      <p className="font-medium text-foreground">
+                        {group.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {group.room}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-foreground">{group.time}</p>
-                    <p className="text-sm text-muted-foreground">{group.students} o&apos;quvchi</p>
+                    <p className="text-sm text-muted-foreground">
+                      {group.students} o&apos;quvchi
+                    </p>
                   </div>
                 </div>
               ))}
@@ -176,5 +220,5 @@ export default function StartLessonPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

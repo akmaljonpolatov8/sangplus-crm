@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { useRole, hasAccess } from "@/lib/role-context"
-import { DataTable } from "@/components/dashboard/data-table"
-import { StatusBadge } from "@/components/dashboard/status-badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardHeader } from "@/components/dashboard/header";
+import { useRole, hasAccess } from "@/lib-frontend/role-context";
+import { DataTable } from "@/components/dashboard/data-table";
+import { StatusBadge } from "@/components/dashboard/status-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -16,79 +16,114 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 interface Teacher {
-  id: string
-  name: string
-  phone: string
-  subject: string
-  status: "active" | "inactive"
-  groups: number
+  id: string;
+  name: string;
+  phone: string;
+  subject: string;
+  status: "active" | "inactive";
+  groups: number;
 }
 
 const mockTeachers: Teacher[] = [
-  { id: "1", name: "Dilshod Karimov", phone: "+998 90 123 45 67", subject: "Kimyo", status: "active", groups: 4 },
-  { id: "2", name: "Nilufar Saidova", phone: "+998 91 234 56 78", subject: "Biologiya", status: "active", groups: 3 },
-  { id: "3", name: "Ulugbek Tursunov", phone: "+998 93 345 67 89", subject: "Kimyo", status: "active", groups: 5 },
-  { id: "4", name: "Madina Rahimova", phone: "+998 94 456 78 90", subject: "Biologiya", status: "inactive", groups: 0 },
-  { id: "5", name: "Bekzod Aliyev", phone: "+998 95 567 89 01", subject: "Kimyo", status: "active", groups: 2 },
-]
+  {
+    id: "1",
+    name: "Dilshod Karimov",
+    phone: "+998 90 123 45 67",
+    subject: "Kimyo",
+    status: "active",
+    groups: 4,
+  },
+  {
+    id: "2",
+    name: "Nilufar Saidova",
+    phone: "+998 91 234 56 78",
+    subject: "Biologiya",
+    status: "active",
+    groups: 3,
+  },
+  {
+    id: "3",
+    name: "Ulugbek Tursunov",
+    phone: "+998 93 345 67 89",
+    subject: "Kimyo",
+    status: "active",
+    groups: 5,
+  },
+  {
+    id: "4",
+    name: "Madina Rahimova",
+    phone: "+998 94 456 78 90",
+    subject: "Biologiya",
+    status: "inactive",
+    groups: 0,
+  },
+  {
+    id: "5",
+    name: "Bekzod Aliyev",
+    phone: "+998 95 567 89 01",
+    subject: "Kimyo",
+    status: "active",
+    groups: 2,
+  },
+];
 
 export default function TeachersPage() {
-  const router = useRouter()
-  const { role } = useRole()
-  const [teachers] = useState<Teacher[]>(mockTeachers)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null)
+  const router = useRouter();
+  const { role } = useRole();
+  const [teachers] = useState<Teacher[]>(mockTeachers);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     subject: "",
-  })
+  });
 
   // Check access
-  const canAccess = hasAccess(role, "teachers")
+  const canAccess = hasAccess(role, "teachers");
 
   useEffect(() => {
     if (!canAccess) {
-      router.replace("/dashboard/attendance")
+      router.replace("/dashboard/attendance");
     }
-  }, [canAccess, router])
+  }, [canAccess, router]);
 
   if (!canAccess) {
-    return null
+    return null;
   }
 
   const handleAddNew = () => {
-    setEditingTeacher(null)
-    setFormData({ name: "", phone: "", subject: "" })
-    setIsDialogOpen(true)
-  }
+    setEditingTeacher(null);
+    setFormData({ name: "", phone: "", subject: "" });
+    setIsDialogOpen(true);
+  };
 
   const handleEdit = (teacher: Teacher) => {
-    setEditingTeacher(teacher)
+    setEditingTeacher(teacher);
     setFormData({
       name: teacher.name,
       phone: teacher.phone,
       subject: teacher.subject,
-    })
-    setIsDialogOpen(true)
-  }
+    });
+    setIsDialogOpen(true);
+  };
 
   const columns = [
     {
@@ -97,7 +132,10 @@ export default function TeachersPage() {
       render: (teacher: Teacher) => (
         <div className="flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
-            {teacher.name.split(" ").map(n => n[0]).join("")}
+            {teacher.name
+              .split(" ")
+              .map((n) => n[0])
+              .join("")}
           </div>
           <span className="font-medium text-foreground">{teacher.name}</span>
         </div>
@@ -157,7 +195,7 @@ export default function TeachersPage() {
         </div>
       ),
     },
-  ]
+  ];
 
   return (
     <div className="min-h-screen">
@@ -178,7 +216,9 @@ export default function TeachersPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editingTeacher ? "O'qituvchini tahrirlash" : "Yangi o'qituvchi qo'shish"}
+              {editingTeacher
+                ? "O'qituvchini tahrirlash"
+                : "Yangi o'qituvchi qo'shish"}
             </DialogTitle>
             <DialogDescription>
               O&apos;qituvchi ma&apos;lumotlarini kiriting
@@ -192,7 +232,9 @@ export default function TeachersPage() {
                 id="name"
                 placeholder="Ism familiyani kiriting"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 className="bg-secondary/50 border-transparent"
               />
             </div>
@@ -203,7 +245,9 @@ export default function TeachersPage() {
                 id="phone"
                 placeholder="+998 XX XXX XX XX"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, phone: e.target.value })
+                }
                 className="bg-secondary/50 border-transparent"
               />
             </div>
@@ -212,7 +256,9 @@ export default function TeachersPage() {
               <Label htmlFor="subject">Fan</Label>
               <Select
                 value={formData.subject}
-                onValueChange={(value) => setFormData({ ...formData, subject: value })}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, subject: value })
+                }
               >
                 <SelectTrigger className="bg-secondary/50 border-transparent">
                   <SelectValue placeholder="Fanni tanlang" />
@@ -236,5 +282,5 @@ export default function TeachersPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

@@ -1,15 +1,15 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { DataTable } from "@/components/dashboard/data-table"
-import { StatusBadge } from "@/components/dashboard/status-badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { useRole, hasAccess } from "@/lib/role-context"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardHeader } from "@/components/dashboard/header";
+import { DataTable } from "@/components/dashboard/data-table";
+import { StatusBadge } from "@/components/dashboard/status-badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useRole, hasAccess } from "@/lib-frontend/role-context";
 import {
   Dialog,
   DialogContent,
@@ -17,96 +17,189 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, CreditCard, CheckCircle, AlertCircle, MessageSquare, Send, Eye, EyeOff } from "lucide-react"
+} from "@/components/ui/dropdown-menu";
+import {
+  MoreHorizontal,
+  CreditCard,
+  CheckCircle,
+  AlertCircle,
+  MessageSquare,
+  Send,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 
-type PaymentStatus = "paid" | "unpaid" | "partial" | "overdue"
+type PaymentStatus = "paid" | "unpaid" | "partial" | "overdue";
 
 interface Payment {
-  id: string
-  student: string
-  group: string
-  month: string
-  amount: string
-  status: PaymentStatus
-  paidDate: string | null
-  parentPhone: string
+  id: string;
+  student: string;
+  group: string;
+  month: string;
+  amount: string;
+  status: PaymentStatus;
+  paidDate: string | null;
+  parentPhone: string;
 }
 
 const mockPayments: Payment[] = [
-  { id: "1", student: "Aziza Karimova", group: "Kimyo 101", month: "Mart 2026", amount: "350,000", status: "paid", paidDate: "2026-03-10", parentPhone: "+998 90 444 55 66" },
-  { id: "2", student: "Bobur Aliyev", group: "Biologiya 201", month: "Mart 2026", amount: "300,000", status: "paid", paidDate: "2026-03-12", parentPhone: "+998 91 555 66 77" },
-  { id: "3", student: "Jasur Toshmatov", group: "Kimyo 101", month: "Mart 2026", amount: "350,000", status: "overdue", paidDate: null, parentPhone: "+998 93 666 77 88" },
-  { id: "4", student: "Malika Rahimova", group: "Biologiya 201", month: "Mart 2026", amount: "300,000", status: "partial", paidDate: "2026-03-14", parentPhone: "+998 94 777 88 99" },
-  { id: "5", student: "Sardor Umarov", group: "Kimyo 102", month: "Mart 2026", amount: "350,000", status: "overdue", paidDate: null, parentPhone: "+998 95 888 99 00" },
-  { id: "6", student: "Dilnoza Yusupova", group: "Biologiya 202", month: "Mart 2026", amount: "300,000", status: "paid", paidDate: "2026-03-08", parentPhone: "+998 97 999 00 11" },
-  { id: "7", student: "Akmal Nazarov", group: "Kimyo 102", month: "Mart 2026", amount: "350,000", status: "unpaid", paidDate: null, parentPhone: "+998 99 000 11 22" },
-  { id: "8", student: "Kamola Abdullayeva", group: "Kimyo 101", month: "Mart 2026", amount: "350,000", status: "paid", paidDate: "2026-03-15", parentPhone: "+998 90 111 22 33" },
-]
+  {
+    id: "1",
+    student: "Aziza Karimova",
+    group: "Kimyo 101",
+    month: "Mart 2026",
+    amount: "350,000",
+    status: "paid",
+    paidDate: "2026-03-10",
+    parentPhone: "+998 90 444 55 66",
+  },
+  {
+    id: "2",
+    student: "Bobur Aliyev",
+    group: "Biologiya 201",
+    month: "Mart 2026",
+    amount: "300,000",
+    status: "paid",
+    paidDate: "2026-03-12",
+    parentPhone: "+998 91 555 66 77",
+  },
+  {
+    id: "3",
+    student: "Jasur Toshmatov",
+    group: "Kimyo 101",
+    month: "Mart 2026",
+    amount: "350,000",
+    status: "overdue",
+    paidDate: null,
+    parentPhone: "+998 93 666 77 88",
+  },
+  {
+    id: "4",
+    student: "Malika Rahimova",
+    group: "Biologiya 201",
+    month: "Mart 2026",
+    amount: "300,000",
+    status: "partial",
+    paidDate: "2026-03-14",
+    parentPhone: "+998 94 777 88 99",
+  },
+  {
+    id: "5",
+    student: "Sardor Umarov",
+    group: "Kimyo 102",
+    month: "Mart 2026",
+    amount: "350,000",
+    status: "overdue",
+    paidDate: null,
+    parentPhone: "+998 95 888 99 00",
+  },
+  {
+    id: "6",
+    student: "Dilnoza Yusupova",
+    group: "Biologiya 202",
+    month: "Mart 2026",
+    amount: "300,000",
+    status: "paid",
+    paidDate: "2026-03-08",
+    parentPhone: "+998 97 999 00 11",
+  },
+  {
+    id: "7",
+    student: "Akmal Nazarov",
+    group: "Kimyo 102",
+    month: "Mart 2026",
+    amount: "350,000",
+    status: "unpaid",
+    paidDate: null,
+    parentPhone: "+998 99 000 11 22",
+  },
+  {
+    id: "8",
+    student: "Kamola Abdullayeva",
+    group: "Kimyo 101",
+    month: "Mart 2026",
+    amount: "350,000",
+    status: "paid",
+    paidDate: "2026-03-15",
+    parentPhone: "+998 90 111 22 33",
+  },
+];
 
-const defaultReminderMessage = `Hurmatli ota-ona, SangPlus o'quv markazidan eslatma. Farzandingiz bo'yicha to'lov kechiktirilgan. To'lovni imkon qadar tezroq amalga oshirishingizni so'raymiz.`
+const defaultReminderMessage = `Hurmatli ota-ona, SangPlus o'quv markazidan eslatma. Farzandingiz bo'yicha to'lov kechiktirilgan. To'lovni imkon qadar tezroq amalga oshirishingizni so'raymiz.`;
 
 export default function PaymentsPage() {
-  const router = useRouter()
-  const { role } = useRole()
-  const [payments] = useState<Payment[]>(mockPayments)
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [isReminderOpen, setIsReminderOpen] = useState(false)
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
-  const [reminderMessage, setReminderMessage] = useState(defaultReminderMessage)
+  const router = useRouter();
+  const { role } = useRole();
+  const [payments] = useState<Payment[]>(mockPayments);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [isReminderOpen, setIsReminderOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [reminderMessage, setReminderMessage] = useState(
+    defaultReminderMessage,
+  );
 
   // Check if user can access this page
-  const canAccessPayments = hasAccess(role, "payments")
-  const canViewAmounts = hasAccess(role, "payments-amounts")
+  const canAccessPayments = hasAccess(role, "payments");
+  const canViewAmounts = hasAccess(role, "payments-amounts");
 
   // Redirect if no access
   useEffect(() => {
     if (!canAccessPayments) {
-      router.replace("/dashboard/attendance")
+      router.replace("/dashboard/attendance");
     }
-  }, [canAccessPayments, router])
+  }, [canAccessPayments, router]);
 
   if (!canAccessPayments) {
-    return null
+    return null;
   }
 
-  const filteredPayments = statusFilter === "all" 
-    ? payments 
-    : payments.filter(p => p.status === statusFilter)
+  const filteredPayments =
+    statusFilter === "all"
+      ? payments
+      : payments.filter((p) => p.status === statusFilter);
 
   const stats = {
-    total: payments.reduce((sum, p) => sum + parseInt(p.amount.replace(/,/g, "")), 0),
-    paid: payments.filter(p => p.status === "paid").reduce((sum, p) => sum + parseInt(p.amount.replace(/,/g, "")), 0),
-    unpaid: payments.filter(p => p.status === "unpaid" || p.status === "overdue").reduce((sum, p) => sum + parseInt(p.amount.replace(/,/g, "")), 0),
-    overdue: payments.filter(p => p.status === "overdue").length,
-    paidCount: payments.filter(p => p.status === "paid").length,
-    unpaidCount: payments.filter(p => p.status === "unpaid" || p.status === "overdue").length,
-  }
+    total: payments.reduce(
+      (sum, p) => sum + parseInt(p.amount.replace(/,/g, "")),
+      0,
+    ),
+    paid: payments
+      .filter((p) => p.status === "paid")
+      .reduce((sum, p) => sum + parseInt(p.amount.replace(/,/g, "")), 0),
+    unpaid: payments
+      .filter((p) => p.status === "unpaid" || p.status === "overdue")
+      .reduce((sum, p) => sum + parseInt(p.amount.replace(/,/g, "")), 0),
+    overdue: payments.filter((p) => p.status === "overdue").length,
+    paidCount: payments.filter((p) => p.status === "paid").length,
+    unpaidCount: payments.filter(
+      (p) => p.status === "unpaid" || p.status === "overdue",
+    ).length,
+  };
 
   const handleSendReminder = (payment: Payment) => {
-    setSelectedPayment(payment)
-    setReminderMessage(defaultReminderMessage)
-    setIsReminderOpen(true)
-  }
+    setSelectedPayment(payment);
+    setReminderMessage(defaultReminderMessage);
+    setIsReminderOpen(true);
+  };
 
   const handleConfirmReminder = () => {
     // Send reminder logic would go here
-    alert(`Eslatma yuborildi: ${selectedPayment?.parentPhone}`)
-    setIsReminderOpen(false)
-  }
+    alert(`Eslatma yuborildi: ${selectedPayment?.parentPhone}`);
+    setIsReminderOpen(false);
+  };
 
   // Define columns based on role
   const columns = [
@@ -116,7 +209,10 @@ export default function PaymentsPage() {
       render: (payment: Payment) => (
         <div className="flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-full bg-chart-2/20 text-sm font-medium text-chart-2">
-            {payment.student.split(" ").map(n => n[0]).join("")}
+            {payment.student
+              .split(" ")
+              .map((n) => n[0])
+              .join("")}
           </div>
           <span className="font-medium text-foreground">{payment.student}</span>
         </div>
@@ -139,13 +235,19 @@ export default function PaymentsPage() {
       ),
     },
     // Only show amount column for owner
-    ...(canViewAmounts ? [{
-      key: "amount",
-      header: "Summa",
-      render: (payment: Payment) => (
-        <span className="font-medium text-foreground">{payment.amount} so&apos;m</span>
-      ),
-    }] : []),
+    ...(canViewAmounts
+      ? [
+          {
+            key: "amount",
+            header: "Summa",
+            render: (payment: Payment) => (
+              <span className="font-medium text-foreground">
+                {payment.amount} so&apos;m
+              </span>
+            ),
+          },
+        ]
+      : []),
     {
       key: "status",
       header: "To'lov holati",
@@ -156,7 +258,9 @@ export default function PaymentsPage() {
       header: "To'langan sana",
       render: (payment: Payment) => (
         <span className="text-muted-foreground">
-          {payment.paidDate ? new Date(payment.paidDate).toLocaleDateString("uz-UZ") : "-"}
+          {payment.paidDate
+            ? new Date(payment.paidDate).toLocaleDateString("uz-UZ")
+            : "-"}
         </span>
       ),
     },
@@ -179,7 +283,8 @@ export default function PaymentsPage() {
                   To&apos;lovni belgilash
                 </DropdownMenuItem>
               )}
-              {(payment.status === "unpaid" || payment.status === "overdue") && (
+              {(payment.status === "unpaid" ||
+                payment.status === "overdue") && (
                 <DropdownMenuItem onClick={() => handleSendReminder(payment)}>
                   <MessageSquare className="mr-2 size-4" />
                   Eslatma yuborish
@@ -190,7 +295,7 @@ export default function PaymentsPage() {
         </div>
       ),
     },
-  ]
+  ];
 
   return (
     <div className="min-h-screen">
@@ -209,7 +314,9 @@ export default function PaymentsPage() {
                       <CreditCard className="size-6 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Jami to&apos;lov</p>
+                      <p className="text-sm text-muted-foreground">
+                        Jami to&apos;lov
+                      </p>
                       <p className="text-xl font-semibold text-foreground">
                         {stats.total.toLocaleString()} so&apos;m
                       </p>
@@ -225,7 +332,9 @@ export default function PaymentsPage() {
                       <CheckCircle className="size-6 text-success" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">To&apos;langan</p>
+                      <p className="text-sm text-muted-foreground">
+                        To&apos;langan
+                      </p>
                       <p className="text-xl font-semibold text-success">
                         {stats.paid.toLocaleString()} so&apos;m
                       </p>
@@ -241,7 +350,9 @@ export default function PaymentsPage() {
                       <AlertCircle className="size-6 text-destructive" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">To&apos;lanmagan</p>
+                      <p className="text-sm text-muted-foreground">
+                        To&apos;lanmagan
+                      </p>
                       <p className="text-xl font-semibold text-destructive">
                         {stats.unpaid.toLocaleString()} so&apos;m
                       </p>
@@ -257,7 +368,9 @@ export default function PaymentsPage() {
                       <AlertCircle className="size-6 text-warning" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Kechikkanlar</p>
+                      <p className="text-sm text-muted-foreground">
+                        Kechikkanlar
+                      </p>
                       <p className="text-xl font-semibold text-warning">
                         {stats.overdue} ta
                       </p>
@@ -276,7 +389,9 @@ export default function PaymentsPage() {
                       <Eye className="size-6 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Jami o&apos;quvchilar</p>
+                      <p className="text-sm text-muted-foreground">
+                        Jami o&apos;quvchilar
+                      </p>
                       <p className="text-xl font-semibold text-foreground">
                         {payments.length} ta
                       </p>
@@ -292,7 +407,9 @@ export default function PaymentsPage() {
                       <CheckCircle className="size-6 text-success" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">To&apos;lagan</p>
+                      <p className="text-sm text-muted-foreground">
+                        To&apos;lagan
+                      </p>
                       <p className="text-xl font-semibold text-success">
                         {stats.paidCount} ta
                       </p>
@@ -308,7 +425,9 @@ export default function PaymentsPage() {
                       <AlertCircle className="size-6 text-destructive" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">To&apos;lamagan</p>
+                      <p className="text-sm text-muted-foreground">
+                        To&apos;lamagan
+                      </p>
                       <p className="text-xl font-semibold text-destructive">
                         {stats.unpaidCount} ta
                       </p>
@@ -364,7 +483,9 @@ export default function PaymentsPage() {
         <Card className="rounded-2xl">
           <CardHeader className="flex-row items-center gap-2 space-y-0 pb-4">
             <MessageSquare className="size-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Eslatma xabari namunasi</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              Eslatma xabari namunasi
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl bg-secondary/30 p-4">
@@ -373,7 +494,8 @@ export default function PaymentsPage() {
               </p>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              * Bu xabar to&apos;lov kechikkan o&apos;quvchilarning ota-onalariga yuboriladi
+              * Bu xabar to&apos;lov kechikkan o&apos;quvchilarning
+              ota-onalariga yuboriladi
             </p>
           </CardContent>
         </Card>
@@ -385,7 +507,8 @@ export default function PaymentsPage() {
           <DialogHeader>
             <DialogTitle>Eslatma yuborish</DialogTitle>
             <DialogDescription>
-              {selectedPayment?.student} ning ota-onasiga eslatma xabari yuboriladi
+              {selectedPayment?.student} ning ota-onasiga eslatma xabari
+              yuboriladi
             </DialogDescription>
           </DialogHeader>
 
@@ -393,20 +516,28 @@ export default function PaymentsPage() {
             <div className="rounded-xl bg-secondary/30 p-4 space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">O&apos;quvchi:</span>
-                <span className="font-medium text-foreground">{selectedPayment?.student}</span>
+                <span className="font-medium text-foreground">
+                  {selectedPayment?.student}
+                </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Telefon:</span>
-                <span className="font-medium text-foreground">{selectedPayment?.parentPhone}</span>
+                <span className="font-medium text-foreground">
+                  {selectedPayment?.parentPhone}
+                </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Guruh:</span>
-                <span className="font-medium text-foreground">{selectedPayment?.group}</span>
+                <span className="font-medium text-foreground">
+                  {selectedPayment?.group}
+                </span>
               </div>
               {canViewAmounts && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Summa:</span>
-                  <span className="font-medium text-destructive">{selectedPayment?.amount} so&apos;m</span>
+                  <span className="font-medium text-destructive">
+                    {selectedPayment?.amount} so&apos;m
+                  </span>
                 </div>
               )}
             </div>
@@ -434,5 +565,5 @@ export default function PaymentsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

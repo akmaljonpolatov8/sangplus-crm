@@ -1,26 +1,26 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { useRole } from "@/lib/role-context"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState } from "react";
+import { DashboardHeader } from "@/components/dashboard/header";
+import { useRole } from "@/lib-frontend/role-context";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Calendar, Clock, Users, Play, Save, CheckCircle2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/select";
+import { Calendar, Clock, Users, Play, Save, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib-frontend/utils";
 
-type AttendanceStatus = "present" | "absent" | "late" | "excused" | null
+type AttendanceStatus = "present" | "absent" | "late" | "excused" | null;
 
 interface Student {
-  id: string
-  name: string
-  status: AttendanceStatus
+  id: string;
+  name: string;
+  status: AttendanceStatus;
 }
 
 const mockStudents: Student[] = [
@@ -32,67 +32,105 @@ const mockStudents: Student[] = [
   { id: "6", name: "Dilnoza Yusupova", status: null },
   { id: "7", name: "Akmal Nazarov", status: null },
   { id: "8", name: "Kamola Abdullayeva", status: null },
-]
+];
 
 const groups = [
-  { id: "1", name: "Kimyo 101", teacher: "Dilshod Karimov", time: "09:00 - 10:30" },
-  { id: "2", name: "Kimyo 102", teacher: "Ulugbek Tursunov", time: "14:00 - 15:30" },
-  { id: "3", name: "Biologiya 201", teacher: "Nilufar Saidova", time: "11:00 - 12:30" },
-  { id: "4", name: "Biologiya 202", teacher: "Nilufar Saidova", time: "16:00 - 17:30" },
-]
+  {
+    id: "1",
+    name: "Kimyo 101",
+    teacher: "Dilshod Karimov",
+    time: "09:00 - 10:30",
+  },
+  {
+    id: "2",
+    name: "Kimyo 102",
+    teacher: "Ulugbek Tursunov",
+    time: "14:00 - 15:30",
+  },
+  {
+    id: "3",
+    name: "Biologiya 201",
+    teacher: "Nilufar Saidova",
+    time: "11:00 - 12:30",
+  },
+  {
+    id: "4",
+    name: "Biologiya 202",
+    teacher: "Nilufar Saidova",
+    time: "16:00 - 17:30",
+  },
+];
 
 const statusConfig = {
-  present: { label: "Keldi", className: "bg-success text-success-foreground hover:bg-success/90" },
-  absent: { label: "Kelmadi", className: "bg-destructive text-white hover:bg-destructive/90" },
-  late: { label: "Kechikdi", className: "bg-warning text-warning-foreground hover:bg-warning/90" },
-  excused: { label: "Sababli", className: "bg-chart-2 text-white hover:bg-chart-2/90" },
-}
+  present: {
+    label: "Keldi",
+    className: "bg-success text-success-foreground hover:bg-success/90",
+  },
+  absent: {
+    label: "Kelmadi",
+    className: "bg-destructive text-white hover:bg-destructive/90",
+  },
+  late: {
+    label: "Kechikdi",
+    className: "bg-warning text-warning-foreground hover:bg-warning/90",
+  },
+  excused: {
+    label: "Sababli",
+    className: "bg-chart-2 text-white hover:bg-chart-2/90",
+  },
+};
 
 export default function AttendancePage() {
-  const { role } = useRole()
-  const [selectedGroup, setSelectedGroup] = useState<string>("")
-  const [lessonStarted, setLessonStarted] = useState(false)
-  const [students, setStudents] = useState<Student[]>(mockStudents)
+  const { role } = useRole();
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [lessonStarted, setLessonStarted] = useState(false);
+  const [students, setStudents] = useState<Student[]>(mockStudents);
 
   // Teachers see a simpler view focused on their own groups
-  const isTeacher = role === "teacher"
+  const isTeacher = role === "teacher";
 
-  const currentGroup = groups.find(g => g.id === selectedGroup)
+  const currentGroup = groups.find((g) => g.id === selectedGroup);
 
   const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
-    setStudents(prev =>
-      prev.map(s =>
-        s.id === studentId ? { ...s, status: s.status === status ? null : status } : s
-      )
-    )
-  }
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === studentId
+          ? { ...s, status: s.status === status ? null : status }
+          : s,
+      ),
+    );
+  };
 
   const handleStartLesson = () => {
-    setLessonStarted(true)
-  }
+    setLessonStarted(true);
+  };
 
   const handleSaveAttendance = () => {
     // Save logic would go here
-    alert("Davomat saqlandi!")
-  }
+    alert("Davomat saqlandi!");
+  };
 
   const attendanceStats = {
-    present: students.filter(s => s.status === "present").length,
-    absent: students.filter(s => s.status === "absent").length,
-    late: students.filter(s => s.status === "late").length,
-    excused: students.filter(s => s.status === "excused").length,
+    present: students.filter((s) => s.status === "present").length,
+    absent: students.filter((s) => s.status === "absent").length,
+    late: students.filter((s) => s.status === "late").length,
+    excused: students.filter((s) => s.status === "excused").length,
     total: students.length,
-  }
+  };
 
   return (
     <div className="min-h-screen">
-      <DashboardHeader title={isTeacher ? "Davomat - Dars sessiyasi" : "Davomat"} />
+      <DashboardHeader
+        title={isTeacher ? "Davomat - Dars sessiyasi" : "Davomat"}
+      />
 
       <div className="p-6 space-y-6">
         {/* Group Selector */}
         <Card className="rounded-2xl">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">Guruhni tanlang</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              Guruhni tanlang
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -107,7 +145,9 @@ export default function AttendancePage() {
                         <div className="flex items-center gap-3">
                           <Users className="size-4 text-muted-foreground" />
                           <span>{group.name}</span>
-                          <span className="text-muted-foreground">({group.time})</span>
+                          <span className="text-muted-foreground">
+                            ({group.time})
+                          </span>
                         </div>
                       </SelectItem>
                     ))}
@@ -116,7 +156,11 @@ export default function AttendancePage() {
               </div>
 
               {currentGroup && !lessonStarted && (
-                <Button size="lg" onClick={handleStartLesson} className="gap-2 h-12">
+                <Button
+                  size="lg"
+                  onClick={handleStartLesson}
+                  className="gap-2 h-12"
+                >
                   <Play className="size-5" />
                   Darsni boshlash
                 </Button>
@@ -128,17 +172,23 @@ export default function AttendancePage() {
                 <div className="flex items-center gap-2 text-sm">
                   <Users className="size-4 text-primary" />
                   <span className="text-muted-foreground">Guruh:</span>
-                  <span className="font-medium text-foreground">{currentGroup.name}</span>
+                  <span className="font-medium text-foreground">
+                    {currentGroup.name}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="size-4 text-chart-2" />
                   <span className="text-muted-foreground">Vaqt:</span>
-                  <span className="font-medium text-foreground">{currentGroup.time}</span>
+                  <span className="font-medium text-foreground">
+                    {currentGroup.time}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar className="size-4 text-chart-4" />
                   <span className="text-muted-foreground">Sana:</span>
-                  <span className="font-medium text-foreground">{new Date().toLocaleDateString("uz-UZ")}</span>
+                  <span className="font-medium text-foreground">
+                    {new Date().toLocaleDateString("uz-UZ")}
+                  </span>
                 </div>
               </div>
             )}
@@ -151,19 +201,27 @@ export default function AttendancePage() {
             {/* Stats */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div className="rounded-xl bg-success/10 p-4 text-center">
-                <p className="text-2xl font-bold text-success">{attendanceStats.present}</p>
+                <p className="text-2xl font-bold text-success">
+                  {attendanceStats.present}
+                </p>
                 <p className="text-sm text-muted-foreground">Keldi</p>
               </div>
               <div className="rounded-xl bg-destructive/10 p-4 text-center">
-                <p className="text-2xl font-bold text-destructive">{attendanceStats.absent}</p>
+                <p className="text-2xl font-bold text-destructive">
+                  {attendanceStats.absent}
+                </p>
                 <p className="text-sm text-muted-foreground">Kelmadi</p>
               </div>
               <div className="rounded-xl bg-warning/10 p-4 text-center">
-                <p className="text-2xl font-bold text-warning">{attendanceStats.late}</p>
+                <p className="text-2xl font-bold text-warning">
+                  {attendanceStats.late}
+                </p>
                 <p className="text-sm text-muted-foreground">Kechikdi</p>
               </div>
               <div className="rounded-xl bg-chart-2/10 p-4 text-center">
-                <p className="text-2xl font-bold text-chart-2">{attendanceStats.excused}</p>
+                <p className="text-2xl font-bold text-chart-2">
+                  {attendanceStats.excused}
+                </p>
                 <p className="text-sm text-muted-foreground">Sababli</p>
               </div>
             </div>
@@ -192,9 +250,14 @@ export default function AttendancePage() {
                         </span>
                         <div className="flex items-center gap-3">
                           <div className="flex size-10 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
-                            {student.name.split(" ").map(n => n[0]).join("")}
+                            {student.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
                           </div>
-                          <span className="font-medium text-foreground">{student.name}</span>
+                          <span className="font-medium text-foreground">
+                            {student.name}
+                          </span>
                         </div>
                         {student.status && (
                           <CheckCircle2 className="size-5 text-success" />
@@ -202,25 +265,29 @@ export default function AttendancePage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        {(Object.keys(statusConfig) as AttendanceStatus[]).map((status) => {
-                          if (!status) return null
-                          const config = statusConfig[status]
-                          const isSelected = student.status === status
-                          return (
-                            <Button
-                              key={status}
-                              variant={isSelected ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handleStatusChange(student.id, status)}
-                              className={cn(
-                                "min-w-[80px]",
-                                isSelected && config.className
-                              )}
-                            >
-                              {config.label}
-                            </Button>
-                          )
-                        })}
+                        {(Object.keys(statusConfig) as AttendanceStatus[]).map(
+                          (status) => {
+                            if (!status) return null;
+                            const config = statusConfig[status];
+                            const isSelected = student.status === status;
+                            return (
+                              <Button
+                                key={status}
+                                variant={isSelected ? "default" : "outline"}
+                                size="sm"
+                                onClick={() =>
+                                  handleStatusChange(student.id, status)
+                                }
+                                className={cn(
+                                  "min-w-[80px]",
+                                  isSelected && config.className,
+                                )}
+                              >
+                                {config.label}
+                              </Button>
+                            );
+                          },
+                        )}
                       </div>
                     </div>
                   ))}
@@ -248,5 +315,5 @@ export default function AttendancePage() {
         )}
       </div>
     </div>
-  )
+  );
 }

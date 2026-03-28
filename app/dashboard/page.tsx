@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { StatCard } from "@/components/dashboard/stat-card"
-import { StatusBadge } from "@/components/dashboard/status-badge"
-import { useRole, hasAccess } from "@/lib/role-context"
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardHeader } from "@/components/dashboard/header";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { StatusBadge } from "@/components/dashboard/status-badge";
+import { useRole, hasAccess } from "@/lib-frontend/role-context";
 import {
   GraduationCap,
   UsersRound,
@@ -15,41 +15,101 @@ import {
   Clock,
   ArrowRight,
   Users,
-} from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 // Mock data
 const recentActivity = [
-  { id: 1, action: "Yangi o'quvchi qo'shildi", name: "Aziza Karimova", time: "5 daqiqa oldin", type: "student" },
-  { id: 2, action: "To'lov qabul qilindi", name: "Bobur Aliyev", time: "15 daqiqa oldin", type: "payment" },
-  { id: 3, action: "Davomat belgilandi", name: "Kimyo 101 guruhi", time: "30 daqiqa oldin", type: "attendance" },
-  { id: 4, action: "Guruh yaratildi", name: "Biologiya 202", time: "1 soat oldin", type: "group" },
-]
+  {
+    id: 1,
+    action: "Yangi o'quvchi qo'shildi",
+    name: "Aziza Karimova",
+    time: "5 daqiqa oldin",
+    type: "student",
+  },
+  {
+    id: 2,
+    action: "To'lov qabul qilindi",
+    name: "Bobur Aliyev",
+    time: "15 daqiqa oldin",
+    type: "payment",
+  },
+  {
+    id: 3,
+    action: "Davomat belgilandi",
+    name: "Kimyo 101 guruhi",
+    time: "30 daqiqa oldin",
+    type: "attendance",
+  },
+  {
+    id: 4,
+    action: "Guruh yaratildi",
+    name: "Biologiya 202",
+    time: "1 soat oldin",
+    type: "group",
+  },
+];
 
 const overduePayments = [
-  { id: 1, student: "Jasur Toshmatov", group: "Kimyo 101", amount: "350,000", daysOverdue: 5 },
-  { id: 2, student: "Malika Rahimova", group: "Biologiya 201", amount: "350,000", daysOverdue: 3 },
-  { id: 3, student: "Sardor Umarov", group: "Kimyo 102", amount: "350,000", daysOverdue: 8 },
-]
+  {
+    id: 1,
+    student: "Jasur Toshmatov",
+    group: "Kimyo 101",
+    amount: "350,000",
+    daysOverdue: 5,
+  },
+  {
+    id: 2,
+    student: "Malika Rahimova",
+    group: "Biologiya 201",
+    amount: "350,000",
+    daysOverdue: 3,
+  },
+  {
+    id: 3,
+    student: "Sardor Umarov",
+    group: "Kimyo 102",
+    amount: "350,000",
+    daysOverdue: 8,
+  },
+];
 
 const teacherActivity = [
-  { id: 1, name: "Dilshod Karimov", subject: "Kimyo", lessonsToday: 4, attendance: 92 },
-  { id: 2, name: "Nilufar Saidova", subject: "Biologiya", lessonsToday: 3, attendance: 88 },
-  { id: 3, name: "Ulugbek Tursunov", subject: "Kimyo", lessonsToday: 5, attendance: 95 },
-]
+  {
+    id: 1,
+    name: "Dilshod Karimov",
+    subject: "Kimyo",
+    lessonsToday: 4,
+    attendance: 92,
+  },
+  {
+    id: 2,
+    name: "Nilufar Saidova",
+    subject: "Biologiya",
+    lessonsToday: 3,
+    attendance: 88,
+  },
+  {
+    id: 3,
+    name: "Ulugbek Tursunov",
+    subject: "Kimyo",
+    lessonsToday: 5,
+    attendance: 95,
+  },
+];
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const { role, isLoaded } = useRole()
+  const router = useRouter();
+  const { role, isLoaded } = useRole();
 
   // Redirect teacher to attendance page (only after role is loaded)
   useEffect(() => {
     if (isLoaded && role === "teacher") {
-      router.replace("/dashboard/attendance")
+      router.replace("/dashboard/attendance");
     }
-  }, [role, isLoaded, router])
+  }, [role, isLoaded, router]);
 
   // Show loading while role is being loaded
   if (!isLoaded) {
@@ -57,15 +117,15 @@ export default function DashboardPage() {
       <div className="flex min-h-screen items-center justify-center">
         <div className="size-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
-    )
+    );
   }
 
   // Don't render dashboard for teachers
   if (role === "teacher") {
-    return null
+    return null;
   }
 
-  const canViewPaymentAmounts = hasAccess(role, "payments-amounts")
+  const canViewPaymentAmounts = hasAccess(role, "payments-amounts");
 
   return (
     <div className="min-h-screen">
@@ -115,8 +175,15 @@ export default function DashboardPage() {
           {/* Recent Activity */}
           <Card className="lg:col-span-2 rounded-2xl">
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
-              <CardTitle className="text-base font-semibold">So&apos;nggi faoliyat</CardTitle>
-              <Button variant="ghost" size="sm" className="text-primary" asChild>
+              <CardTitle className="text-base font-semibold">
+                So&apos;nggi faoliyat
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary"
+                asChild
+              >
                 <Link href="/dashboard/students">
                   Barchasini ko&apos;rish
                   <ArrowRight className="ml-1 size-4" />
@@ -126,36 +193,48 @@ export default function DashboardPage() {
             <CardContent>
               <div className="space-y-4">
                 {recentActivity
-                  .filter(activity => {
+                  .filter((activity) => {
                     // Manager shouldn't see payment activities with amounts
                     if (role === "manager" && activity.type === "payment") {
-                      return false
+                      return false;
                     }
-                    return true
+                    return true;
                   })
                   .map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-center justify-between rounded-xl bg-secondary/30 p-4"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                        {activity.type === "student" && <GraduationCap className="size-5 text-primary" />}
-                        {activity.type === "payment" && <TrendingUp className="size-5 text-success" />}
-                        {activity.type === "attendance" && <ClipboardCheck className="size-5 text-chart-2" />}
-                        {activity.type === "group" && <UsersRound className="size-5 text-chart-4" />}
+                    <div
+                      key={activity.id}
+                      className="flex items-center justify-between rounded-xl bg-secondary/30 p-4"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+                          {activity.type === "student" && (
+                            <GraduationCap className="size-5 text-primary" />
+                          )}
+                          {activity.type === "payment" && (
+                            <TrendingUp className="size-5 text-success" />
+                          )}
+                          {activity.type === "attendance" && (
+                            <ClipboardCheck className="size-5 text-chart-2" />
+                          )}
+                          {activity.type === "group" && (
+                            <UsersRound className="size-5 text-chart-4" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {activity.action}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {activity.name}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{activity.action}</p>
-                        <p className="text-sm text-muted-foreground">{activity.name}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="size-3" />
+                        {activity.time}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Clock className="size-3" />
-                      {activity.time}
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </CardContent>
           </Card>
@@ -163,7 +242,9 @@ export default function DashboardPage() {
           {/* Teacher Activity */}
           <Card className="rounded-2xl">
             <CardHeader className="pb-4">
-              <CardTitle className="text-base font-semibold">O&apos;qituvchilar faoliyati</CardTitle>
+              <CardTitle className="text-base font-semibold">
+                O&apos;qituvchilar faoliyati
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -174,16 +255,27 @@ export default function DashboardPage() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex size-10 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
-                        {teacher.name.split(" ").map(n => n[0]).join("")}
+                        {teacher.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">{teacher.name}</p>
-                        <p className="text-xs text-muted-foreground">{teacher.subject}</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {teacher.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {teacher.subject}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-foreground">{teacher.lessonsToday} dars</p>
-                      <p className="text-xs text-success">{teacher.attendance}% davomat</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {teacher.lessonsToday} dars
+                      </p>
+                      <p className="text-xs text-success">
+                        {teacher.attendance}% davomat
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -198,9 +290,16 @@ export default function DashboardPage() {
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
               <div className="flex items-center gap-2">
                 <AlertCircle className="size-5 text-destructive" />
-                <CardTitle className="text-base font-semibold">Kechikkan to&apos;lovlar</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  Kechikkan to&apos;lovlar
+                </CardTitle>
               </div>
-              <Button variant="ghost" size="sm" className="text-primary" asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary"
+                asChild
+              >
                 <Link href="/dashboard/payments">
                   Barchasini ko&apos;rish
                   <ArrowRight className="ml-1 size-4" />
@@ -212,22 +311,41 @@ export default function DashboardPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="pb-3 text-left text-sm font-medium text-muted-foreground">O&apos;quvchi</th>
-                      <th className="pb-3 text-left text-sm font-medium text-muted-foreground">Guruh</th>
+                      <th className="pb-3 text-left text-sm font-medium text-muted-foreground">
+                        O&apos;quvchi
+                      </th>
+                      <th className="pb-3 text-left text-sm font-medium text-muted-foreground">
+                        Guruh
+                      </th>
                       {canViewPaymentAmounts && (
-                        <th className="pb-3 text-left text-sm font-medium text-muted-foreground">Summa</th>
+                        <th className="pb-3 text-left text-sm font-medium text-muted-foreground">
+                          Summa
+                        </th>
                       )}
-                      <th className="pb-3 text-left text-sm font-medium text-muted-foreground">Holat</th>
-                      <th className="pb-3 text-right text-sm font-medium text-muted-foreground">Amal</th>
+                      <th className="pb-3 text-left text-sm font-medium text-muted-foreground">
+                        Holat
+                      </th>
+                      <th className="pb-3 text-right text-sm font-medium text-muted-foreground">
+                        Amal
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {overduePayments.map((payment) => (
-                      <tr key={payment.id} className="border-b border-border last:border-0">
-                        <td className="py-4 text-sm font-medium text-foreground">{payment.student}</td>
-                        <td className="py-4 text-sm text-muted-foreground">{payment.group}</td>
+                      <tr
+                        key={payment.id}
+                        className="border-b border-border last:border-0"
+                      >
+                        <td className="py-4 text-sm font-medium text-foreground">
+                          {payment.student}
+                        </td>
+                        <td className="py-4 text-sm text-muted-foreground">
+                          {payment.group}
+                        </td>
                         {canViewPaymentAmounts && (
-                          <td className="py-4 text-sm text-foreground">{payment.amount} so&apos;m</td>
+                          <td className="py-4 text-sm text-foreground">
+                            {payment.amount} so&apos;m
+                          </td>
                         )}
                         <td className="py-4">
                           <StatusBadge status="overdue" />
@@ -252,9 +370,16 @@ export default function DashboardPage() {
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
               <div className="flex items-center gap-2">
                 <AlertCircle className="size-5 text-warning" />
-                <CardTitle className="text-base font-semibold">To&apos;lov holati</CardTitle>
+                <CardTitle className="text-base font-semibold">
+                  To&apos;lov holati
+                </CardTitle>
               </div>
-              <Button variant="ghost" size="sm" className="text-primary" asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary"
+                asChild
+              >
                 <Link href="/dashboard/payments">
                   Barchasini ko&apos;rish
                   <ArrowRight className="ml-1 size-4" />
@@ -265,7 +390,9 @@ export default function DashboardPage() {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-xl bg-success/10 p-4 text-center">
                   <p className="text-2xl font-bold text-success">5</p>
-                  <p className="text-sm text-muted-foreground">To&apos;langan</p>
+                  <p className="text-sm text-muted-foreground">
+                    To&apos;langan
+                  </p>
                 </div>
                 <div className="rounded-xl bg-warning/10 p-4 text-center">
                   <p className="text-2xl font-bold text-warning">2</p>
@@ -281,5 +408,5 @@ export default function DashboardPage() {
         )}
       </div>
     </div>
-  )
+  );
 }

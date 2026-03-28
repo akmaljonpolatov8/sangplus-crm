@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { useRole, hasAccess } from "@/lib/role-context"
-import { DataTable } from "@/components/dashboard/data-table"
-import { StatusBadge } from "@/components/dashboard/status-badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardHeader } from "@/components/dashboard/header";
+import { useRole, hasAccess } from "@/lib-frontend/role-context";
+import { DataTable } from "@/components/dashboard/data-table";
+import { StatusBadge } from "@/components/dashboard/status-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -16,85 +16,137 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Pencil, Trash2, Users, Calendar, Clock } from "lucide-react"
+} from "@/components/ui/dropdown-menu";
+import {
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Users,
+  Calendar,
+  Clock,
+} from "lucide-react";
 
 interface Group {
-  id: string
-  name: string
-  teacher: string
-  days: string
-  time: string
-  monthlyFee: string
-  students: number
-  status: "active" | "inactive"
+  id: string;
+  name: string;
+  teacher: string;
+  days: string;
+  time: string;
+  monthlyFee: string;
+  students: number;
+  status: "active" | "inactive";
 }
 
 const mockGroups: Group[] = [
-  { id: "1", name: "Kimyo 101", teacher: "Dilshod Karimov", days: "Du, Cho, Ju", time: "09:00 - 10:30", monthlyFee: "350,000", students: 12, status: "active" },
-  { id: "2", name: "Kimyo 102", teacher: "Ulugbek Tursunov", days: "Se, Pay, Sha", time: "14:00 - 15:30", monthlyFee: "350,000", students: 10, status: "active" },
-  { id: "3", name: "Biologiya 201", teacher: "Nilufar Saidova", days: "Du, Cho, Ju", time: "11:00 - 12:30", monthlyFee: "300,000", students: 15, status: "active" },
-  { id: "4", name: "Biologiya 202", teacher: "Nilufar Saidova", days: "Se, Pay, Sha", time: "16:00 - 17:30", monthlyFee: "300,000", students: 8, status: "active" },
-  { id: "5", name: "Kimyo 103", teacher: "Bekzod Aliyev", days: "Du, Cho, Ju", time: "18:00 - 19:30", monthlyFee: "350,000", students: 6, status: "inactive" },
-]
+  {
+    id: "1",
+    name: "Kimyo 101",
+    teacher: "Dilshod Karimov",
+    days: "Du, Cho, Ju",
+    time: "09:00 - 10:30",
+    monthlyFee: "350,000",
+    students: 12,
+    status: "active",
+  },
+  {
+    id: "2",
+    name: "Kimyo 102",
+    teacher: "Ulugbek Tursunov",
+    days: "Se, Pay, Sha",
+    time: "14:00 - 15:30",
+    monthlyFee: "350,000",
+    students: 10,
+    status: "active",
+  },
+  {
+    id: "3",
+    name: "Biologiya 201",
+    teacher: "Nilufar Saidova",
+    days: "Du, Cho, Ju",
+    time: "11:00 - 12:30",
+    monthlyFee: "300,000",
+    students: 15,
+    status: "active",
+  },
+  {
+    id: "4",
+    name: "Biologiya 202",
+    teacher: "Nilufar Saidova",
+    days: "Se, Pay, Sha",
+    time: "16:00 - 17:30",
+    monthlyFee: "300,000",
+    students: 8,
+    status: "active",
+  },
+  {
+    id: "5",
+    name: "Kimyo 103",
+    teacher: "Bekzod Aliyev",
+    days: "Du, Cho, Ju",
+    time: "18:00 - 19:30",
+    monthlyFee: "350,000",
+    students: 6,
+    status: "inactive",
+  },
+];
 
 export default function GroupsPage() {
-  const router = useRouter()
-  const { role } = useRole()
-  const [groups] = useState<Group[]>(mockGroups)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingGroup, setEditingGroup] = useState<Group | null>(null)
+  const router = useRouter();
+  const { role } = useRole();
+  const [groups] = useState<Group[]>(mockGroups);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     teacher: "",
     days: "",
     time: "",
     monthlyFee: "",
-  })
+  });
 
   // Check access
-  const canAccess = hasAccess(role, "groups")
+  const canAccess = hasAccess(role, "groups");
 
   useEffect(() => {
     if (!canAccess) {
-      router.replace("/dashboard/attendance")
+      router.replace("/dashboard/attendance");
     }
-  }, [canAccess, router])
+  }, [canAccess, router]);
 
   if (!canAccess) {
-    return null
+    return null;
   }
 
   const handleAddNew = () => {
-    setEditingGroup(null)
-    setFormData({ name: "", teacher: "", days: "", time: "", monthlyFee: "" })
-    setIsDialogOpen(true)
-  }
+    setEditingGroup(null);
+    setFormData({ name: "", teacher: "", days: "", time: "", monthlyFee: "" });
+    setIsDialogOpen(true);
+  };
 
   const handleEdit = (group: Group) => {
-    setEditingGroup(group)
+    setEditingGroup(group);
     setFormData({
       name: group.name,
       teacher: group.teacher,
       days: group.days,
       time: group.time,
       monthlyFee: group.monthlyFee,
-    })
-    setIsDialogOpen(true)
-  }
+    });
+    setIsDialogOpen(true);
+  };
 
   const columns = [
     {
@@ -107,7 +159,9 @@ export default function GroupsPage() {
           </div>
           <div>
             <span className="font-medium text-foreground">{group.name}</span>
-            <p className="text-xs text-muted-foreground">{group.students} ta o&apos;quvchi</p>
+            <p className="text-xs text-muted-foreground">
+              {group.students} ta o&apos;quvchi
+            </p>
           </div>
         </div>
       ),
@@ -143,7 +197,9 @@ export default function GroupsPage() {
       key: "monthlyFee",
       header: "Oylik to'lov",
       render: (group: Group) => (
-        <span className="font-medium text-foreground">{group.monthlyFee} so&apos;m</span>
+        <span className="font-medium text-foreground">
+          {group.monthlyFee} so&apos;m
+        </span>
       ),
     },
     {
@@ -177,7 +233,7 @@ export default function GroupsPage() {
         </div>
       ),
     },
-  ]
+  ];
 
   return (
     <div className="min-h-screen">
@@ -212,7 +268,9 @@ export default function GroupsPage() {
                 id="name"
                 placeholder="Masalan: Kimyo 101"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 className="bg-secondary/50 border-transparent"
               />
             </div>
@@ -221,15 +279,23 @@ export default function GroupsPage() {
               <Label htmlFor="teacher">O&apos;qituvchi</Label>
               <Select
                 value={formData.teacher}
-                onValueChange={(value) => setFormData({ ...formData, teacher: value })}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, teacher: value })
+                }
               >
                 <SelectTrigger className="bg-secondary/50 border-transparent">
                   <SelectValue placeholder="O'qituvchini tanlang" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Dilshod Karimov">Dilshod Karimov</SelectItem>
-                  <SelectItem value="Nilufar Saidova">Nilufar Saidova</SelectItem>
-                  <SelectItem value="Ulugbek Tursunov">Ulugbek Tursunov</SelectItem>
+                  <SelectItem value="Dilshod Karimov">
+                    Dilshod Karimov
+                  </SelectItem>
+                  <SelectItem value="Nilufar Saidova">
+                    Nilufar Saidova
+                  </SelectItem>
+                  <SelectItem value="Ulugbek Tursunov">
+                    Ulugbek Tursunov
+                  </SelectItem>
                   <SelectItem value="Bekzod Aliyev">Bekzod Aliyev</SelectItem>
                 </SelectContent>
               </Select>
@@ -240,7 +306,9 @@ export default function GroupsPage() {
                 <Label htmlFor="days">Dars kunlari</Label>
                 <Select
                   value={formData.days}
-                  onValueChange={(value) => setFormData({ ...formData, days: value })}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, days: value })
+                  }
                 >
                   <SelectTrigger className="bg-secondary/50 border-transparent">
                     <SelectValue placeholder="Kunlarni tanlang" />
@@ -258,7 +326,9 @@ export default function GroupsPage() {
                   id="time"
                   placeholder="09:00 - 10:30"
                   value={formData.time}
-                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, time: e.target.value })
+                  }
                   className="bg-secondary/50 border-transparent"
                 />
               </div>
@@ -270,7 +340,9 @@ export default function GroupsPage() {
                 id="monthlyFee"
                 placeholder="350,000"
                 value={formData.monthlyFee}
-                onChange={(e) => setFormData({ ...formData, monthlyFee: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, monthlyFee: e.target.value })
+                }
                 className="bg-secondary/50 border-transparent"
               />
             </div>
@@ -287,5 +359,5 @@ export default function GroupsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

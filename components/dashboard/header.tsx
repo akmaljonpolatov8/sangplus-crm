@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import { Bell, Search, ChevronDown } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Bell, Search, ChevronDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,16 +11,20 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useRole, roleLabels, roleBadgeStyles } from "@/lib/role-context"
-import Link from "next/link"
+} from "@/components/ui/dropdown-menu";
+import {
+  useRole,
+  roleLabels,
+  roleBadgeStyles,
+} from "@/lib-frontend/role-context";
+import Link from "next/link";
 
 interface DashboardHeaderProps {
-  title: string
+  title: string;
 }
 
 export function DashboardHeader({ title }: DashboardHeaderProps) {
-  const { role, userName, isLoaded } = useRole()
+  const { role, userName, isLoaded } = useRole();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-sm">
@@ -52,10 +56,16 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-3 px-3">
               <div className="flex size-8 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
-                {userName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                {userName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .slice(0, 2)}
               </div>
               <div className="hidden text-left md:block">
-                <p className="text-sm font-medium text-foreground">{userName}</p>
+                <p className="text-sm font-medium text-foreground">
+                  {userName}
+                </p>
                 <Badge variant="outline" className={roleBadgeStyles[role]}>
                   {roleLabels[role]}
                 </Badge>
@@ -70,11 +80,11 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
             <DropdownMenuItem>Parolni o&apos;zgartirish</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild className="text-destructive">
-              <Link 
+              <Link
                 href="/"
                 onClick={() => {
-                  sessionStorage.removeItem("sangplus_role")
-                  sessionStorage.removeItem("sangplus_username")
+                  sessionStorage.removeItem("sangplus_role");
+                  sessionStorage.removeItem("sangplus_username");
                 }}
               >
                 Chiqish
@@ -84,5 +94,5 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
         </DropdownMenu>
       </div>
     </header>
-  )
+  );
 }
