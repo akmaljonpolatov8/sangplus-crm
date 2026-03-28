@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/header";
-import { useRole } from "@/lib-frontend/role-context";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -12,307 +14,284 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Clock, Users, Play, Save, CheckCircle2 } from "lucide-react";
-import { cn } from "@/lib-frontend/utils";
+import {
+  attendanceAPI,
+  getApiErrorMessage,
+  groupsAPI,
+} from "@/lib-frontend/api-client";
+import { useRole } from "@/lib-frontend/role-context";
+import { toYMD } from "@/lib-frontend/utils";
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused" | null;
 
-interface Student {
+interface AttendanceStudent {
   id: string;
-  name: string;
+  studentId?: string | null;
+  studentName?: string | null;
+  name?: string | null;
   status: AttendanceStatus;
 }
 
-const mockStudents: Student[] = [
-  { id: "1", name: "Aziza Karimova", status: null },
-  { id: "2", name: "Bobur Aliyev", status: null },
-  { id: "3", name: "Jasur Toshmatov", status: null },
-  { id: "4", name: "Malika Rahimova", status: null },
-  { id: "5", name: "Sardor Umarov", status: null },
-  { id: "6", name: "Dilnoza Yusupova", status: null },
-  { id: "7", name: "Akmal Nazarov", status: null },
-  { id: "8", name: "Kamola Abdullayeva", status: null },
-];
-
-const groups = [
-  {
-    id: "1",
-    name: "Kimyo 101",
-    teacher: "Dilshod Karimov",
-    time: "09:00 - 10:30",
-  },
-  {
-    id: "2",
-    name: "Kimyo 102",
-    teacher: "Ulugbek Tursunov",
-    time: "14:00 - 15:30",
-  },
-  {
-    id: "3",
-    name: "Biologiya 201",
-    teacher: "Nilufar Saidova",
-    time: "11:00 - 12:30",
-  },
-  {
-    id: "4",
-    name: "Biologiya 202",
-    teacher: "Nilufar Saidova",
-    time: "16:00 - 17:30",
-  },
-];
-
-const statusConfig = {
-  present: {
-    label: "Keldi",
-    className: "bg-success text-success-foreground hover:bg-success/90",
-  },
-  absent: {
-    label: "Kelmadi",
-    className: "bg-destructive text-white hover:bg-destructive/90",
-  },
-  late: {
-    label: "Kechikdi",
-    className: "bg-warning text-warning-foreground hover:bg-warning/90",
-  },
-  excused: {
-    label: "Sababli",
-    className: "bg-chart-2 text-white hover:bg-chart-2/90",
-  },
-};
+interface GroupItem {
+  id: string;
+  name?: string | null;
+}
 
 export default function AttendancePage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { role } = useRole();
-  const [selectedGroup, setSelectedGroup] = useState<string>("");
-  const [lessonStarted, setLessonStarted] = useState(false);
-  const [students, setStudents] = useState<Student[]>(mockStudents);
 
-  // Teachers see a simpler view focused on their own groups
-  const isTeacher = role === "teacher";
+  const [groups, setGroups] = useState<GroupItem[]>([]);
+  const [students, setStudents] = useState<AttendanceStudent[]>([]);
 
-  const currentGroup = groups.find((g) => g.id === selectedGroup);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
+  const groupId = searchParams.get("groupId") || "";
+  const lessonDate = searchParams.get("lessonDate") || toYMD(new Date());
+
+  const updateParams = (next: { groupId?: string; lessonDate?: string }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const nextGroupId = next.groupId ?? groupId;
+    const nextLessonDate = next.lessonDate ?? lessonDate;
+
+    if (nextGroupId) params.set("groupId", nextGroupId);
+    else params.delete("groupId");
+
+    if (nextLessonDate) params.set("lessonDate", toYMD(nextLessonDate));
+    else params.delete("lessonDate");
+
+    router.replace(`${pathname}?${params.toString()}`);
+  };
+
+  const load = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [groupsData, attendanceData] = await Promise.all([
+        groupsAPI.list(),
+        attendanceAPI.list({
+          groupId: groupId || undefined,
+          lessonDate: lessonDate || undefined,
+        }),
+      ]);
+
+      setGroups(Array.isArray(groupsData) ? groupsData : []);
+      setStudents(
+        Array.isArray(attendanceData)
+          ? attendanceData.map((item) => ({
+              id: String(item.id ?? item.studentId ?? crypto.randomUUID()),
+              studentId: item.studentId || null,
+              studentName: item.studentName || item.name || null,
+              name: item.name || item.studentName || null,
+              status: item.status || null,
+            }))
+          : [],
+      );
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, lessonDate]);
+
+  const setStatus = (id: string, status: AttendanceStatus) => {
     setStudents((prev) =>
       prev.map((s) =>
-        s.id === studentId
-          ? { ...s, status: s.status === status ? null : status }
-          : s,
+        s.id === id ? { ...s, status: s.status === status ? null : status } : s,
       ),
     );
   };
 
-  const handleStartLesson = () => {
-    setLessonStarted(true);
+  const saveAttendance = async () => {
+    if (!groupId) {
+      setError("Avval guruhni tanlang");
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await attendanceAPI.create({
+        groupId,
+        lessonDate: toYMD(lessonDate),
+        entries: students.map((s) => ({
+          studentId: s.studentId || s.id,
+          status: s.status,
+        })),
+      });
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleSaveAttendance = () => {
-    // Save logic would go here
-    alert("Davomat saqlandi!");
-  };
-
-  const attendanceStats = {
-    present: students.filter((s) => s.status === "present").length,
-    absent: students.filter((s) => s.status === "absent").length,
-    late: students.filter((s) => s.status === "late").length,
-    excused: students.filter((s) => s.status === "excused").length,
-    total: students.length,
-  };
+  const stats = useMemo(
+    () => ({
+      present: students.filter((s) => s.status === "present").length,
+      absent: students.filter((s) => s.status === "absent").length,
+      late: students.filter((s) => s.status === "late").length,
+      excused: students.filter((s) => s.status === "excused").length,
+      total: students.length,
+    }),
+    [students],
+  );
 
   return (
     <div className="min-h-screen">
       <DashboardHeader
-        title={isTeacher ? "Davomat - Dars sessiyasi" : "Davomat"}
+        title={role === "teacher" ? "Davomat" : "Davomat boshqaruvi"}
       />
 
-      <div className="p-6 space-y-6">
-        {/* Group Selector */}
-        <Card className="rounded-2xl">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">
-              Guruhni tanlang
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-              <div className="flex-1 space-y-2">
-                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger className="h-12 bg-secondary/50 border-transparent text-base">
-                    <SelectValue placeholder="Guruhni tanlang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        <div className="flex items-center gap-3">
-                          <Users className="size-4 text-muted-foreground" />
-                          <span>{group.name}</span>
-                          <span className="text-muted-foreground">
-                            ({group.time})
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+      <div className="space-y-6 p-6">
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
 
-              {currentGroup && !lessonStarted && (
-                <Button
-                  size="lg"
-                  onClick={handleStartLesson}
-                  className="gap-2 h-12"
-                >
-                  <Play className="size-5" />
-                  Darsni boshlash
-                </Button>
-              )}
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Filterlar</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Guruh</Label>
+              <Select
+                value={groupId}
+                onValueChange={(value) => updateParams({ groupId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Guruhni tanlang" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name || "Noma'lum guruh"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {currentGroup && (
-              <div className="mt-6 flex flex-wrap items-center gap-6 rounded-xl bg-secondary/30 p-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <Users className="size-4 text-primary" />
-                  <span className="text-muted-foreground">Guruh:</span>
-                  <span className="font-medium text-foreground">
-                    {currentGroup.name}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Clock className="size-4 text-chart-2" />
-                  <span className="text-muted-foreground">Vaqt:</span>
-                  <span className="font-medium text-foreground">
-                    {currentGroup.time}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="size-4 text-chart-4" />
-                  <span className="text-muted-foreground">Sana:</span>
-                  <span className="font-medium text-foreground">
-                    {new Date().toLocaleDateString("uz-UZ")}
-                  </span>
-                </div>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>lessonDate (YYYY-MM-DD)</Label>
+              <Input
+                type="date"
+                value={lessonDate}
+                onChange={(e) => updateParams({ lessonDate: e.target.value })}
+              />
+            </div>
           </CardContent>
         </Card>
 
-        {/* Attendance List */}
-        {selectedGroup && lessonStarted && (
-          <>
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-xl bg-success/10 p-4 text-center">
-                <p className="text-2xl font-bold text-success">
-                  {attendanceStats.present}
-                </p>
-                <p className="text-sm text-muted-foreground">Keldi</p>
-              </div>
-              <div className="rounded-xl bg-destructive/10 p-4 text-center">
-                <p className="text-2xl font-bold text-destructive">
-                  {attendanceStats.absent}
-                </p>
-                <p className="text-sm text-muted-foreground">Kelmadi</p>
-              </div>
-              <div className="rounded-xl bg-warning/10 p-4 text-center">
-                <p className="text-2xl font-bold text-warning">
-                  {attendanceStats.late}
-                </p>
-                <p className="text-sm text-muted-foreground">Kechikdi</p>
-              </div>
-              <div className="rounded-xl bg-chart-2/10 p-4 text-center">
-                <p className="text-2xl font-bold text-chart-2">
-                  {attendanceStats.excused}
-                </p>
-                <p className="text-sm text-muted-foreground">Sababli</p>
-              </div>
-            </div>
-
-            {/* Student List */}
-            <Card className="rounded-2xl">
-              <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
-                <CardTitle className="text-base font-semibold">
-                  O&apos;quvchilar ro&apos;yxati ({students.length} ta)
-                </CardTitle>
-                <Button onClick={handleSaveAttendance} className="gap-2">
-                  <Save className="size-4" />
-                  Davomatni saqlash
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {students.map((student, index) => (
-                    <div
-                      key={student.id}
-                      className="flex flex-col gap-4 rounded-xl bg-secondary/30 p-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="flex items-center gap-4">
-                        <span className="flex size-8 items-center justify-center rounded-lg bg-secondary text-sm font-medium text-muted-foreground">
-                          {index + 1}
-                        </span>
-                        <div className="flex items-center gap-3">
-                          <div className="flex size-10 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
-                            {student.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </div>
-                          <span className="font-medium text-foreground">
-                            {student.name}
-                          </span>
-                        </div>
-                        {student.status && (
-                          <CheckCircle2 className="size-5 text-success" />
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {(Object.keys(statusConfig) as AttendanceStatus[]).map(
-                          (status) => {
-                            if (!status) return null;
-                            const config = statusConfig[status];
-                            const isSelected = student.status === status;
-                            return (
-                              <Button
-                                key={status}
-                                variant={isSelected ? "default" : "outline"}
-                                size="sm"
-                                onClick={() =>
-                                  handleStatusChange(student.id, status)
-                                }
-                                className={cn(
-                                  "min-w-[80px]",
-                                  isSelected && config.className,
-                                )}
-                              >
-                                {config.label}
-                              </Button>
-                            );
-                          },
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
-
-        {/* Empty State */}
-        {!selectedGroup && (
-          <Card className="rounded-2xl">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="flex size-16 items-center justify-center rounded-2xl bg-secondary">
-                <Users className="size-8 text-muted-foreground" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-foreground">
-                Guruhni tanlang
-              </h3>
-              <p className="mt-2 text-center text-sm text-muted-foreground">
-                Davomat belgilash uchun avval guruhni tanlang
-              </p>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <Card>
+            <CardContent className="p-3 text-sm">
+              Jami: {stats.total}
             </CardContent>
           </Card>
-        )}
+          <Card>
+            <CardContent className="p-3 text-sm text-success">
+              Keldi: {stats.present}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-sm text-destructive">
+              Kelmadi: {stats.absent}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-sm">
+              Kechikdi: {stats.late}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-sm">
+              Sababli: {stats.excused}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>O'quvchilar ro'yxati</CardTitle>
+            <Button onClick={saveAttendance} disabled={isSaving || isLoading}>
+              {isSaving ? "Saqlanmoqda..." : "Davomatni saqlash"}
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {students.map((student, i) => (
+              <div key={student.id} className="rounded-lg border p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="font-medium">
+                    {i + 1}. {student.studentName || student.name || "Noma'lum"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {student.studentId || "-"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant={
+                      student.status === "present" ? "default" : "outline"
+                    }
+                    onClick={() => setStatus(student.id, "present")}
+                  >
+                    Keldi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={
+                      student.status === "absent" ? "default" : "outline"
+                    }
+                    onClick={() => setStatus(student.id, "absent")}
+                  >
+                    Kelmadi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={student.status === "late" ? "default" : "outline"}
+                    onClick={() => setStatus(student.id, "late")}
+                  >
+                    Kechikdi
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={
+                      student.status === "excused" ? "default" : "outline"
+                    }
+                    onClick={() => setStatus(student.id, "excused")}
+                  >
+                    Sababli
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            {!isLoading && students.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground">
+                Davomat ma'lumotlari topilmadi
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

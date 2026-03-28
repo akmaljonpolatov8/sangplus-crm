@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { DataTable } from "@/components/dashboard/data-table";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRole, hasAccess } from "@/lib-frontend/role-context";
 import {
   Dialog,
   DialogContent,
@@ -33,216 +32,395 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   MoreHorizontal,
+  Plus,
   CreditCard,
+  CircleAlert,
   CheckCircle,
-  AlertCircle,
-  MessageSquare,
-  Send,
-  Eye,
-  EyeOff,
 } from "lucide-react";
+import {
+  ApiClientError,
+  getApiErrorMessage,
+  groupsAPI,
+  paymentsAPI,
+} from "@/lib-frontend/api-client";
+import { hasAccess, useRole } from "@/lib-frontend/role-context";
+import { formatCurrency, normalizeMoney, toYMD } from "@/lib-frontend/utils";
 
 type PaymentStatus = "paid" | "unpaid" | "partial" | "overdue";
 
-interface Payment {
+interface PaymentItem {
   id: string;
-  student: string;
-  group: string;
-  month: string;
-  amount: string;
-  status: PaymentStatus;
-  paidDate: string | null;
-  parentPhone: string;
+  studentName?: string | null;
+  student?: string | null;
+  studentId?: string | null;
+  groupName?: string | null;
+  group?: string | null;
+  groupId?: string | null;
+  billingMonth?: string | null;
+  amount?: number | string | null;
+  paidAmount?: number | string | null;
+  debtAmount?: number | string | null;
+  status?: PaymentStatus | string | null;
+  paymentDate?: string | null;
+  paidDate?: string | null;
 }
 
-const mockPayments: Payment[] = [
-  {
-    id: "1",
-    student: "Aziza Karimova",
-    group: "Kimyo 101",
-    month: "Mart 2026",
-    amount: "350,000",
-    status: "paid",
-    paidDate: "2026-03-10",
-    parentPhone: "+998 90 444 55 66",
-  },
-  {
-    id: "2",
-    student: "Bobur Aliyev",
-    group: "Biologiya 201",
-    month: "Mart 2026",
-    amount: "300,000",
-    status: "paid",
-    paidDate: "2026-03-12",
-    parentPhone: "+998 91 555 66 77",
-  },
-  {
-    id: "3",
-    student: "Jasur Toshmatov",
-    group: "Kimyo 101",
-    month: "Mart 2026",
-    amount: "350,000",
-    status: "overdue",
-    paidDate: null,
-    parentPhone: "+998 93 666 77 88",
-  },
-  {
-    id: "4",
-    student: "Malika Rahimova",
-    group: "Biologiya 201",
-    month: "Mart 2026",
-    amount: "300,000",
-    status: "partial",
-    paidDate: "2026-03-14",
-    parentPhone: "+998 94 777 88 99",
-  },
-  {
-    id: "5",
-    student: "Sardor Umarov",
-    group: "Kimyo 102",
-    month: "Mart 2026",
-    amount: "350,000",
-    status: "overdue",
-    paidDate: null,
-    parentPhone: "+998 95 888 99 00",
-  },
-  {
-    id: "6",
-    student: "Dilnoza Yusupova",
-    group: "Biologiya 202",
-    month: "Mart 2026",
-    amount: "300,000",
-    status: "paid",
-    paidDate: "2026-03-08",
-    parentPhone: "+998 97 999 00 11",
-  },
-  {
-    id: "7",
-    student: "Akmal Nazarov",
-    group: "Kimyo 102",
-    month: "Mart 2026",
-    amount: "350,000",
-    status: "unpaid",
-    paidDate: null,
-    parentPhone: "+998 99 000 11 22",
-  },
-  {
-    id: "8",
-    student: "Kamola Abdullayeva",
-    group: "Kimyo 101",
-    month: "Mart 2026",
-    amount: "350,000",
-    status: "paid",
-    paidDate: "2026-03-15",
-    parentPhone: "+998 90 111 22 33",
-  },
-];
+interface GroupItem {
+  id: string;
+  name?: string | null;
+  monthlyFee?: number | string | null;
+}
 
-const defaultReminderMessage = `Hurmatli ota-ona, SangPlus o'quv markazidan eslatma. Farzandingiz bo'yicha to'lov kechiktirilgan. To'lovni imkon qadar tezroq amalga oshirishingizni so'raymiz.`;
+interface PaymentSummary {
+  group?: {
+    id?: string;
+    name?: string;
+  } | null;
+  billingMonth?: string | null;
+  dueDate?: string | null;
+  totals?: {
+    totalAmount?: number | string;
+    paidAmount?: number | string;
+    debtAmount?: number | string;
+  } | null;
+  paidStudents?: Array<{
+    studentId?: string;
+    studentName?: string;
+    amount?: number | string;
+  }>;
+  debtors?: Array<{
+    studentId?: string;
+    studentName?: string;
+    debtAmount?: number | string;
+  }>;
+  entries?: Array<{
+    studentId?: string;
+    studentName?: string;
+    amount?: number | string;
+    paidAmount?: number | string;
+    debtAmount?: number | string;
+    status?: string;
+  }>;
+}
+
+interface PaymentFormState {
+  id?: string;
+  studentId: string;
+  groupId: string;
+  billingMonth: string;
+  amount: string;
+  paidAmount: string;
+  paymentDate: string;
+}
+
+const initialForm: PaymentFormState = {
+  studentId: "",
+  groupId: "",
+  billingMonth: toYMD(new Date()),
+  amount: "",
+  paidAmount: "",
+  paymentDate: toYMD(new Date()),
+};
+
+function safeStatus(value: unknown): PaymentStatus {
+  if (
+    value === "paid" ||
+    value === "unpaid" ||
+    value === "partial" ||
+    value === "overdue"
+  ) {
+    return value;
+  }
+  return "unpaid";
+}
+
+function dueDateFromMonth(month: string): string {
+  if (!month) return "-";
+  const ymd = toYMD(month);
+  if (!ymd) return "-";
+  return `${ymd.slice(0, 8)}15`;
+}
 
 export default function PaymentsPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { role } = useRole();
-  const [payments] = useState<Payment[]>(mockPayments);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isReminderOpen, setIsReminderOpen] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [reminderMessage, setReminderMessage] = useState(
-    defaultReminderMessage,
-  );
 
-  // Check if user can access this page
   const canAccessPayments = hasAccess(role, "payments");
-  const canViewAmounts = hasAccess(role, "payments-amounts");
+  const canViewAmounts = role === "owner";
 
-  // Redirect if no access
+  const [groups, setGroups] = useState<GroupItem[]>([]);
+  const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [summary, setSummary] = useState<PaymentSummary | null>(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formState, setFormState] = useState<PaymentFormState>(initialForm);
+
+  const selectedGroupId = searchParams.get("groupId") || "all";
+  const selectedStatus = searchParams.get("status") || "all";
+  const selectedBillingMonth =
+    searchParams.get("billingMonth") || toYMD(new Date());
+
+  const updateFilters = (next: {
+    groupId?: string;
+    status?: string;
+    billingMonth?: string;
+  }) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    const groupId = next.groupId ?? selectedGroupId;
+    const status = next.status ?? selectedStatus;
+    const billingMonth = next.billingMonth ?? selectedBillingMonth;
+
+    if (!groupId || groupId === "all") params.delete("groupId");
+    else params.set("groupId", groupId);
+
+    if (!status || status === "all") params.delete("status");
+    else params.set("status", status);
+
+    if (!billingMonth) params.delete("billingMonth");
+    else params.set("billingMonth", billingMonth);
+
+    router.replace(`${pathname}?${params.toString()}`);
+  };
+
+  const loadGroups = async () => {
+    const list = await groupsAPI.list();
+    setGroups(Array.isArray(list) ? list : []);
+  };
+
+  const loadPayments = async () => {
+    const list = await paymentsAPI.list({
+      groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
+      status: selectedStatus === "all" ? undefined : selectedStatus,
+      billingMonth: selectedBillingMonth || undefined,
+    });
+    setPayments(Array.isArray(list) ? list : []);
+  };
+
+  const loadSummary = async () => {
+    if (!selectedBillingMonth) {
+      setSummary(null);
+      return;
+    }
+
+    const data = await paymentsAPI.summary({
+      groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
+      billingMonth: selectedBillingMonth,
+    });
+
+    setSummary(data ?? null);
+  };
+
+  const loadAll = async () => {
+    if (!canAccessPayments) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await Promise.all([loadGroups(), loadPayments(), loadSummary()]);
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!canAccessPayments) {
       router.replace("/dashboard/attendance");
+      return;
     }
-  }, [canAccessPayments, router]);
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    canAccessPayments,
+    selectedGroupId,
+    selectedStatus,
+    selectedBillingMonth,
+  ]);
+
+  const paymentStats = useMemo(() => {
+    const totalAmount = payments.reduce(
+      (acc, item) => acc + normalizeMoney(item.amount),
+      0,
+    );
+    const totalPaid = payments.reduce(
+      (acc, item) => acc + normalizeMoney(item.paidAmount),
+      0,
+    );
+    const totalDebt = payments.reduce(
+      (acc, item) => acc + normalizeMoney(item.debtAmount),
+      0,
+    );
+
+    const paidCount = payments.filter(
+      (p) => safeStatus(p.status) === "paid",
+    ).length;
+    const debtorCount = payments.filter((p) => {
+      const status = safeStatus(p.status);
+      return (
+        status === "overdue" || status === "partial" || status === "unpaid"
+      );
+    }).length;
+
+    return {
+      totalAmount,
+      totalPaid,
+      totalDebt,
+      paidCount,
+      debtorCount,
+    };
+  }, [payments]);
+
+  const openCreate = () => {
+    setFormState({
+      ...initialForm,
+      billingMonth: selectedBillingMonth || toYMD(new Date()),
+    });
+    setFieldErrors({});
+    setFormError(null);
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (payment: PaymentItem) => {
+    setFormState({
+      id: payment.id,
+      studentId: payment.studentId || "",
+      groupId: payment.groupId || "",
+      billingMonth:
+        toYMD(payment.billingMonth) ||
+        selectedBillingMonth ||
+        toYMD(new Date()),
+      amount: String(payment.amount ?? ""),
+      paidAmount: String(payment.paidAmount ?? ""),
+      paymentDate:
+        toYMD(payment.paymentDate || payment.paidDate) || toYMD(new Date()),
+    });
+    setFieldErrors({});
+    setFormError(null);
+    setIsDialogOpen(true);
+  };
+
+  const submitForm = async () => {
+    setFormError(null);
+    setFieldErrors({});
+
+    const amount = normalizeMoney(formState.amount);
+    const paidAmount = normalizeMoney(formState.paidAmount);
+
+    if (paidAmount > amount) {
+      setFieldErrors({
+        paidAmount: "Paid amount amountdan katta bo'lishi mumkin emas",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const payload = {
+        studentId: formState.studentId || undefined,
+        groupId: formState.groupId || undefined,
+        billingMonth: toYMD(formState.billingMonth),
+        amount,
+        paidAmount,
+        paymentDate: toYMD(formState.paymentDate),
+      };
+
+      if (formState.id) {
+        await paymentsAPI.update(formState.id, payload);
+      } else {
+        await paymentsAPI.create(payload);
+      }
+
+      setIsDialogOpen(false);
+      await loadAll();
+    } catch (err) {
+      if (
+        err instanceof ApiClientError &&
+        (err.status === 400 || err.status === 409)
+      ) {
+        if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
+          setFieldErrors(err.fieldErrors);
+        }
+      }
+      setFormError(getApiErrorMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!canAccessPayments) {
     return null;
   }
 
-  const filteredPayments =
-    statusFilter === "all"
-      ? payments
-      : payments.filter((p) => p.status === statusFilter);
+  const summaryDueDate = summary?.dueDate
+    ? toYMD(summary.dueDate)
+    : dueDateFromMonth(summary?.billingMonth || selectedBillingMonth);
 
-  const stats = {
-    total: payments.reduce(
-      (sum, p) => sum + parseInt(p.amount.replace(/,/g, "")),
-      0,
-    ),
-    paid: payments
-      .filter((p) => p.status === "paid")
-      .reduce((sum, p) => sum + parseInt(p.amount.replace(/,/g, "")), 0),
-    unpaid: payments
-      .filter((p) => p.status === "unpaid" || p.status === "overdue")
-      .reduce((sum, p) => sum + parseInt(p.amount.replace(/,/g, "")), 0),
-    overdue: payments.filter((p) => p.status === "overdue").length,
-    paidCount: payments.filter((p) => p.status === "paid").length,
-    unpaidCount: payments.filter(
-      (p) => p.status === "unpaid" || p.status === "overdue",
-    ).length,
-  };
-
-  const handleSendReminder = (payment: Payment) => {
-    setSelectedPayment(payment);
-    setReminderMessage(defaultReminderMessage);
-    setIsReminderOpen(true);
-  };
-
-  const handleConfirmReminder = () => {
-    // Send reminder logic would go here
-    alert(`Eslatma yuborildi: ${selectedPayment?.parentPhone}`);
-    setIsReminderOpen(false);
-  };
-
-  // Define columns based on role
   const columns = [
     {
-      key: "student",
+      key: "studentName",
       header: "O'quvchi",
-      render: (payment: Payment) => (
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-full bg-chart-2/20 text-sm font-medium text-chart-2">
-            {payment.student
-              .split(" ")
-              .map((n) => n[0])
-              .join("")}
-          </div>
-          <span className="font-medium text-foreground">{payment.student}</span>
-        </div>
-      ),
-    },
-    {
-      key: "group",
-      header: "Guruh",
-      render: (payment: Payment) => (
-        <span className="inline-flex items-center rounded-lg bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-          {payment.group}
+      render: (item: PaymentItem) => (
+        <span className="font-medium text-foreground">
+          {item.studentName || item.student || "-"}
         </span>
       ),
     },
     {
-      key: "month",
-      header: "Oy",
-      render: (payment: Payment) => (
-        <span className="text-muted-foreground">{payment.month}</span>
+      key: "groupName",
+      header: "Guruh",
+      render: (item: PaymentItem) => (
+        <span className="text-muted-foreground">
+          {item.groupName || item.group || "-"}
+        </span>
       ),
     },
-    // Only show amount column for owner
+    {
+      key: "billingMonth",
+      header: "Billing month",
+      render: (item: PaymentItem) => (
+        <span className="text-muted-foreground">
+          {toYMD(item.billingMonth) || "-"}
+        </span>
+      ),
+    },
     ...(canViewAmounts
       ? [
           {
             key: "amount",
-            header: "Summa",
-            render: (payment: Payment) => (
+            header: "Amount",
+            render: (item: PaymentItem) => (
               <span className="font-medium text-foreground">
-                {payment.amount} so&apos;m
+                {formatCurrency(item.amount)}
+              </span>
+            ),
+          },
+          {
+            key: "paidAmount",
+            header: "Paid",
+            render: (item: PaymentItem) => (
+              <span className="font-medium text-success">
+                {formatCurrency(item.paidAmount)}
+              </span>
+            ),
+          },
+          {
+            key: "debtAmount",
+            header: "Debt",
+            render: (item: PaymentItem) => (
+              <span className="font-medium text-destructive">
+                {formatCurrency(item.debtAmount)}
               </span>
             ),
           },
@@ -250,25 +428,16 @@ export default function PaymentsPage() {
       : []),
     {
       key: "status",
-      header: "To'lov holati",
-      render: (payment: Payment) => <StatusBadge status={payment.status} />,
-    },
-    {
-      key: "paidDate",
-      header: "To'langan sana",
-      render: (payment: Payment) => (
-        <span className="text-muted-foreground">
-          {payment.paidDate
-            ? new Date(payment.paidDate).toLocaleDateString("uz-UZ")
-            : "-"}
-        </span>
+      header: "Status",
+      render: (item: PaymentItem) => (
+        <StatusBadge status={safeStatus(item.status)} />
       ),
     },
     {
       key: "actions",
       header: "Amallar",
       className: "text-right",
-      render: (payment: Payment) => (
+      render: (item: PaymentItem) => (
         <div className="flex justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -277,19 +446,9 @@ export default function PaymentsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canViewAmounts && (
-                <DropdownMenuItem>
-                  <CreditCard className="mr-2 size-4" />
-                  To&apos;lovni belgilash
-                </DropdownMenuItem>
-              )}
-              {(payment.status === "unpaid" ||
-                payment.status === "overdue") && (
-                <DropdownMenuItem onClick={() => handleSendReminder(payment)}>
-                  <MessageSquare className="mr-2 size-4" />
-                  Eslatma yuborish
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => openEdit(item)}>
+                Tahrirlash
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -301,269 +460,363 @@ export default function PaymentsPage() {
     <div className="min-h-screen">
       <DashboardHeader title="To'lovlar" />
 
-      <div className="p-6 space-y-6">
-        {/* Stats - Different view for owner vs manager */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {canViewAmounts ? (
-            // Owner view - with amounts
-            <>
-              <Card className="rounded-2xl border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10">
-                      <CreditCard className="size-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Jami to&apos;lov
-                      </p>
-                      <p className="text-xl font-semibold text-foreground">
-                        {stats.total.toLocaleString()} so&apos;m
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+      <div className="space-y-6 p-6">
+        {error && (
+          <Card className="border-destructive/40 bg-destructive/5">
+            <CardContent className="flex items-center gap-2 p-4 text-destructive">
+              <CircleAlert className="size-4" />
+              <span>{error}</span>
+            </CardContent>
+          </Card>
+        )}
 
-              <Card className="rounded-2xl border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-success/10">
-                      <CheckCircle className="size-6 text-success" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        To&apos;langan
-                      </p>
-                      <p className="text-xl font-semibold text-success">
-                        {stats.paid.toLocaleString()} so&apos;m
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        )}
 
-              <Card className="rounded-2xl border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-destructive/10">
-                      <AlertCircle className="size-6 text-destructive" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        To&apos;lanmagan
-                      </p>
-                      <p className="text-xl font-semibold text-destructive">
-                        {stats.unpaid.toLocaleString()} so&apos;m
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-warning/10">
-                      <AlertCircle className="size-6 text-warning" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Kechikkanlar
-                      </p>
-                      <p className="text-xl font-semibold text-warning">
-                        {stats.overdue} ta
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            // Manager view - only counts, no amounts
-            <>
-              <Card className="rounded-2xl border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10">
-                      <Eye className="size-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Jami o&apos;quvchilar
-                      </p>
-                      <p className="text-xl font-semibold text-foreground">
-                        {payments.length} ta
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-success/10">
-                      <CheckCircle className="size-6 text-success" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        To&apos;lagan
-                      </p>
-                      <p className="text-xl font-semibold text-success">
-                        {stats.paidCount} ta
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-destructive/10">
-                      <AlertCircle className="size-6 text-destructive" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        To&apos;lamagan
-                      </p>
-                      <p className="text-xl font-semibold text-destructive">
-                        {stats.unpaidCount} ta
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-warning/10">
-                      <EyeOff className="size-6 text-warning" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Summalar</p>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Faqat egasi ko&apos;radi
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="flex items-center gap-4">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48 bg-secondary/50 border-transparent">
-              <SelectValue placeholder="Holat bo'yicha filtrlash" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Barchasi</SelectItem>
-              <SelectItem value="paid">To&apos;langan</SelectItem>
-              <SelectItem value="unpaid">To&apos;lanmagan</SelectItem>
-              <SelectItem value="partial">Qisman</SelectItem>
-              <SelectItem value="overdue">Kechikkan</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Table */}
-        <DataTable
-          data={filteredPayments}
-          columns={columns}
-          searchPlaceholder="O'quvchi qidirish..."
-          showFilters={false}
-        />
-
-        {/* Reminder Message Preview Card */}
         <Card className="rounded-2xl">
-          <CardHeader className="flex-row items-center gap-2 space-y-0 pb-4">
-            <MessageSquare className="size-5 text-primary" />
-            <CardTitle className="text-base font-semibold">
-              Eslatma xabari namunasi
-            </CardTitle>
+          <CardHeader>
+            <CardTitle>Filterlar</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-xl bg-secondary/30 p-4">
-              <p className="text-sm leading-relaxed text-foreground">
-                {defaultReminderMessage}
-              </p>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              * Bu xabar to&apos;lov kechikkan o&apos;quvchilarning
-              ota-onalariga yuboriladi
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Reminder Dialog */}
-      <Dialog open={isReminderOpen} onOpenChange={setIsReminderOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Eslatma yuborish</DialogTitle>
-            <DialogDescription>
-              {selectedPayment?.student} ning ota-onasiga eslatma xabari
-              yuboriladi
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="rounded-xl bg-secondary/30 p-4 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">O&apos;quvchi:</span>
-                <span className="font-medium text-foreground">
-                  {selectedPayment?.student}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Telefon:</span>
-                <span className="font-medium text-foreground">
-                  {selectedPayment?.parentPhone}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Guruh:</span>
-                <span className="font-medium text-foreground">
-                  {selectedPayment?.group}
-                </span>
-              </div>
-              {canViewAmounts && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Summa:</span>
-                  <span className="font-medium text-destructive">
-                    {selectedPayment?.amount} so&apos;m
-                  </span>
-                </div>
-              )}
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Guruh</Label>
+              <Select
+                value={selectedGroupId}
+                onValueChange={(value) => updateFilters({ groupId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Guruhni tanlang" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Barchasi</SelectItem>
+                  {groups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name || "Noma'lum guruh"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="message">Xabar matni</Label>
-              <Textarea
-                id="message"
-                value={reminderMessage}
-                onChange={(e) => setReminderMessage(e.target.value)}
-                className="min-h-[120px] bg-secondary/50 border-transparent resize-none"
+              <Label>Billing month (YYYY-MM-DD)</Label>
+              <Input
+                type="date"
+                value={selectedBillingMonth}
+                onChange={(e) =>
+                  updateFilters({ billingMonth: toYMD(e.target.value) })
+                }
               />
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsReminderOpen(false)}>
-              Bekor qilish
-            </Button>
-            <Button onClick={handleConfirmReminder} className="gap-2">
-              <Send className="size-4" />
-              Yuborish
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={selectedStatus}
+                onValueChange={(value) => updateFilters({ status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Barchasi</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
+                  <SelectItem value="overdue">Overdue</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Jami tushum</p>
+              <p className="text-xl font-semibold text-success">
+                {formatCurrency(paymentStats.totalPaid)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Jami qarz</p>
+              <p className="text-xl font-semibold text-destructive">
+                {formatCurrency(paymentStats.totalDebt)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Kim to'lagan</p>
+              <p className="text-xl font-semibold text-foreground">
+                {paymentStats.paidCount}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">Qarzdorlar</p>
+              <p className="text-xl font-semibold text-foreground">
+                {paymentStats.debtorCount}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="rounded-2xl">
+          <CardHeader>
+            <CardTitle>Payments summary (oy/guruh)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Guruh: {summary?.group?.name || "-"} | Billing month:{" "}
+              {toYMD(summary?.billingMonth) || selectedBillingMonth || "-"} |
+              Due date: {summaryDueDate}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Jami amount</p>
+                <p className="font-semibold">
+                  {formatCurrency(summary?.totals?.totalAmount)}
+                </p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">To'langan</p>
+                <p className="font-semibold text-success">
+                  {formatCurrency(summary?.totals?.paidAmount)}
+                </p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Qarz</p>
+                <p className="font-semibold text-destructive">
+                  {formatCurrency(summary?.totals?.debtAmount)}
+                </p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Entries</p>
+                <p className="font-semibold">{summary?.entries?.length || 0}</p>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="mb-2 text-sm font-medium">Kim to'lagan</p>
+                {summary?.paidStudents?.length ? (
+                  <ul className="space-y-1 text-sm">
+                    {summary.paidStudents.map((item) => (
+                      <li
+                        key={`${item.studentId}-${item.studentName}`}
+                        className="flex items-center justify-between rounded border p-2"
+                      >
+                        <span>{item.studentName || "Noma'lum"}</span>
+                        <span>{formatCurrency(item.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Ma'lumot yo'q</p>
+                )}
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium">Kim qarzdor</p>
+                {summary?.debtors?.length ? (
+                  <ul className="space-y-1 text-sm">
+                    {summary.debtors.map((item) => (
+                      <li
+                        key={`${item.studentId}-${item.studentName}`}
+                        className="flex items-center justify-between rounded border p-2"
+                      >
+                        <span>{item.studentName || "Noma'lum"}</span>
+                        <span className="text-destructive">
+                          {formatCurrency(item.debtAmount)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Ma'lumot yo'q</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <DataTable
+          data={payments}
+          columns={columns}
+          searchPlaceholder="Payment qidirish..."
+          showFilters={false}
+          addButtonLabel="To'lov qo'shish"
+          onAddClick={openCreate}
+        />
+
+        {!isLoading && payments.length === 0 && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
+              <CreditCard className="size-8" />
+              <p>To'lovlar topilmadi</p>
+            </CardContent>
+          </Card>
+        )}
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {formState.id ? "To'lovni tahrirlash" : "To'lov qo'shish"}
+              </DialogTitle>
+              <DialogDescription>
+                `paidAmount` qiymati `amount`dan katta bo'lmasligi shart.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              {formError && (
+                <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
+                  {formError}
+                </p>
+              )}
+
+              <div className="space-y-1">
+                <Label htmlFor="studentId">Student ID</Label>
+                <Input
+                  id="studentId"
+                  value={formState.studentId}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      studentId: e.target.value,
+                    }))
+                  }
+                />
+                {fieldErrors.studentId && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.studentId}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="groupId">Group ID</Label>
+                <Input
+                  id="groupId"
+                  value={formState.groupId}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      groupId: e.target.value,
+                    }))
+                  }
+                />
+                {fieldErrors.groupId && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.groupId}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="billingMonth">Billing month (YYYY-MM-DD)</Label>
+                <Input
+                  id="billingMonth"
+                  type="date"
+                  value={formState.billingMonth}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      billingMonth: toYMD(e.target.value),
+                    }))
+                  }
+                />
+                {fieldErrors.billingMonth && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.billingMonth}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="amount">Amount</Label>
+                  <Input
+                    id="amount"
+                    value={formState.amount}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        amount: e.target.value,
+                      }))
+                    }
+                  />
+                  {fieldErrors.amount && (
+                    <p className="text-xs text-destructive">
+                      {fieldErrors.amount}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="paidAmount">Paid amount</Label>
+                  <Input
+                    id="paidAmount"
+                    value={formState.paidAmount}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        paidAmount: e.target.value,
+                      }))
+                    }
+                  />
+                  {fieldErrors.paidAmount && (
+                    <p className="text-xs text-destructive">
+                      {fieldErrors.paidAmount}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="paymentDate">Payment date</Label>
+                <Input
+                  id="paymentDate"
+                  type="date"
+                  value={formState.paymentDate}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      paymentDate: toYMD(e.target.value),
+                    }))
+                  }
+                />
+                {fieldErrors.paymentDate && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.paymentDate}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Bekor qilish
+              </Button>
+              <Button
+                onClick={submitForm}
+                disabled={isSaving}
+                className="gap-2"
+              >
+                {isSaving ? (
+                  <CircleAlert className="size-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="size-4" />
+                )}
+                Saqlash
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }

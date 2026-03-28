@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/header";
-import { useRole, hasAccess } from "@/lib-frontend/role-context";
 import { DataTable } from "@/components/dashboard/data-table";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
@@ -18,301 +17,311 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, Trash2, Eye } from "lucide-react";
+import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
+import {
+  ApiClientError,
+  getApiErrorMessage,
+  studentsAPI,
+} from "@/lib-frontend/api-client";
+import { hasAccess, useRole } from "@/lib-frontend/role-context";
 
 interface Student {
   id: string;
+  name?: string | null;
+  phone?: string | null;
+  parentPhone?: string | null;
+  group?: string | null;
+  groupName?: string | null;
+  status?: "active" | "inactive" | null;
+}
+
+interface StudentForm {
+  id?: string;
   name: string;
   phone: string;
   parentPhone: string;
   group: string;
-  status: "active" | "inactive";
 }
 
-const mockStudents: Student[] = [
-  {
-    id: "1",
-    name: "Aziza Karimova",
-    phone: "+998 90 111 22 33",
-    parentPhone: "+998 90 444 55 66",
-    group: "Kimyo 101",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Bobur Aliyev",
-    phone: "+998 91 222 33 44",
-    parentPhone: "+998 91 555 66 77",
-    group: "Biologiya 201",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Jasur Toshmatov",
-    phone: "+998 93 333 44 55",
-    parentPhone: "+998 93 666 77 88",
-    group: "Kimyo 101",
-    status: "active",
-  },
-  {
-    id: "4",
-    name: "Malika Rahimova",
-    phone: "+998 94 444 55 66",
-    parentPhone: "+998 94 777 88 99",
-    group: "Biologiya 201",
-    status: "inactive",
-  },
-  {
-    id: "5",
-    name: "Sardor Umarov",
-    phone: "+998 95 555 66 77",
-    parentPhone: "+998 95 888 99 00",
-    group: "Kimyo 102",
-    status: "active",
-  },
-  {
-    id: "6",
-    name: "Dilnoza Yusupova",
-    phone: "+998 97 666 77 88",
-    parentPhone: "+998 97 999 00 11",
-    group: "Biologiya 202",
-    status: "active",
-  },
-  {
-    id: "7",
-    name: "Akmal Nazarov",
-    phone: "+998 99 777 88 99",
-    parentPhone: "+998 99 000 11 22",
-    group: "Kimyo 102",
-    status: "active",
-  },
-  {
-    id: "8",
-    name: "Kamola Abdullayeva",
-    phone: "+998 90 888 99 00",
-    parentPhone: "+998 90 111 22 33",
-    group: "Kimyo 101",
-    status: "active",
-  },
-];
+const initialForm: StudentForm = {
+  name: "",
+  phone: "",
+  parentPhone: "",
+  group: "",
+};
 
 export default function StudentsPage() {
   const router = useRouter();
   const { role } = useRole();
-  const [students] = useState<Student[]>(mockStudents);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    parentPhone: "",
-    group: "",
-  });
-
-  // Check access
   const canAccess = hasAccess(role, "students");
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState<StudentForm>(initialForm);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  const loadStudents = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await studentsAPI.list();
+      setStudents(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!canAccess) {
       router.replace("/dashboard/attendance");
+      return;
     }
-  }, [canAccess, router]);
-
-  if (!canAccess) {
-    return null;
-  }
+    loadStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess]);
 
   const handleAddNew = () => {
-    setEditingStudent(null);
-    setFormData({ name: "", phone: "", parentPhone: "", group: "" });
+    setFormData(initialForm);
+    setFieldErrors({});
+    setFormError(null);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (student: Student) => {
-    setEditingStudent(student);
     setFormData({
-      name: student.name,
-      phone: student.phone,
-      parentPhone: student.parentPhone,
-      group: student.group,
+      id: student.id,
+      name: student.name || "",
+      phone: student.phone || "",
+      parentPhone: student.parentPhone || "",
+      group: student.group || student.groupName || "",
     });
+    setFieldErrors({});
+    setFormError(null);
     setIsDialogOpen(true);
   };
 
-  const columns = [
-    {
-      key: "name",
-      header: "Ism familiya",
-      render: (student: Student) => (
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-full bg-chart-2/20 text-sm font-medium text-chart-2">
-            {student.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")}
+  const submitStudent = async () => {
+    setIsSaving(true);
+    setFormError(null);
+    setFieldErrors({});
+
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        parentPhone: formData.parentPhone.trim() || null,
+        group: formData.group.trim() || null,
+      };
+
+      if (formData.id) {
+        await studentsAPI.update(formData.id, payload);
+      } else {
+        await studentsAPI.create(payload);
+      }
+
+      setIsDialogOpen(false);
+      await loadStudents();
+    } catch (err) {
+      if (
+        err instanceof ApiClientError &&
+        (err.status === 400 || err.status === 409)
+      ) {
+        if (err.fieldErrors) setFieldErrors(err.fieldErrors);
+      }
+      setFormError(getApiErrorMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const columns = useMemo(
+    () => [
+      {
+        key: "name",
+        header: "Ism familiya",
+        render: (student: Student) => (
+          <span className="font-medium text-foreground">
+            {student.name || "-"}
+          </span>
+        ),
+      },
+      {
+        key: "phone",
+        header: "Telefon",
+        render: (student: Student) => (
+          <span className="text-muted-foreground">{student.phone || "-"}</span>
+        ),
+      },
+      {
+        key: "parentPhone",
+        header: "Ota-ona raqami",
+        render: (student: Student) => (
+          <span className="text-muted-foreground">
+            {student.parentPhone || "-"}
+          </span>
+        ),
+      },
+      {
+        key: "group",
+        header: "Guruh",
+        render: (student: Student) => (
+          <span className="text-muted-foreground">
+            {student.groupName || student.group || "-"}
+          </span>
+        ),
+      },
+      {
+        key: "status",
+        header: "Holati",
+        render: (student: Student) => (
+          <StatusBadge status={student.status || "inactive"} />
+        ),
+      },
+      {
+        key: "actions",
+        header: "Amallar",
+        className: "text-right",
+        render: (student: Student) => (
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm">
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleEdit(student)}>
+                  <Pencil className="mr-2 size-4" />
+                  Tahrirlash
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <span className="font-medium text-foreground">{student.name}</span>
-        </div>
-      ),
-    },
-    {
-      key: "phone",
-      header: "Telefon",
-      render: (student: Student) => (
-        <span className="text-muted-foreground">{student.phone}</span>
-      ),
-    },
-    {
-      key: "parentPhone",
-      header: "Ota-ona raqami",
-      render: (student: Student) => (
-        <span className="text-muted-foreground">{student.parentPhone}</span>
-      ),
-    },
-    {
-      key: "group",
-      header: "Guruh",
-      render: (student: Student) => (
-        <span className="inline-flex items-center rounded-lg bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-          {student.group}
-        </span>
-      ),
-    },
-    {
-      key: "status",
-      header: "Holati",
-      render: (student: Student) => <StatusBadge status={student.status} />,
-    },
-    {
-      key: "actions",
-      header: "Amallar",
-      className: "text-right",
-      render: (student: Student) => (
-        <div className="flex justify-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm">
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Eye className="mr-2 size-4" />
-                Ko&apos;rish
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleEdit(student)}>
-                <Pencil className="mr-2 size-4" />
-                Tahrirlash
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">
-                <Trash2 className="mr-2 size-4" />
-                O&apos;chirish
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ),
-    },
-  ];
+        ),
+      },
+    ],
+    [],
+  );
+
+  if (!canAccess) return null;
 
   return (
     <div className="min-h-screen">
       <DashboardHeader title="O'quvchilar" />
 
-      <div className="p-6">
+      <div className="space-y-4 p-6">
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        )}
+
         <DataTable
           data={students}
           columns={columns}
           searchPlaceholder="O'quvchi qidirish..."
           addButtonLabel="O'quvchi qo'shish"
           onAddClick={handleAddNew}
+          showFilters={false}
         />
+
+        {!isLoading && students.length === 0 && (
+          <p className="text-center text-sm text-muted-foreground">
+            O'quvchilar topilmadi
+          </p>
+        )}
       </div>
 
-      {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editingStudent
-                ? "O'quvchini tahrirlash"
-                : "Yangi o'quvchi qo'shish"}
+              {formData.id ? "O'quvchini tahrirlash" : "Yangi o'quvchi"}
             </DialogTitle>
             <DialogDescription>
-              O&apos;quvchi ma&apos;lumotlarini kiriting
+              Ma'lumotlarni API response asosida saqlaydi.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
+          <div className="space-y-3 py-2">
+            {formError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
+                {formError}
+              </div>
+            )}
+
+            <div className="space-y-1">
               <Label htmlFor="name">Ism familiya</Label>
               <Input
                 id="name"
-                placeholder="Ism familiyani kiriting"
                 value={formData.name}
                 onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
+                  setFormData((p) => ({ ...p, name: e.target.value }))
                 }
-                className="bg-secondary/50 border-transparent"
               />
+              {fieldErrors.name && (
+                <p className="text-xs text-destructive">{fieldErrors.name}</p>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefon raqami</Label>
+            <div className="space-y-1">
+              <Label htmlFor="phone">Telefon</Label>
               <Input
                 id="phone"
-                placeholder="+998 XX XXX XX XX"
                 value={formData.phone}
                 onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
+                  setFormData((p) => ({ ...p, phone: e.target.value }))
                 }
-                className="bg-secondary/50 border-transparent"
               />
+              {fieldErrors.phone && (
+                <p className="text-xs text-destructive">{fieldErrors.phone}</p>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="parentPhone">Ota-ona telefon raqami</Label>
+            <div className="space-y-1">
+              <Label htmlFor="parentPhone">Ota-ona telefoni</Label>
               <Input
                 id="parentPhone"
-                placeholder="+998 XX XXX XX XX"
                 value={formData.parentPhone}
                 onChange={(e) =>
-                  setFormData({ ...formData, parentPhone: e.target.value })
+                  setFormData((p) => ({ ...p, parentPhone: e.target.value }))
                 }
-                className="bg-secondary/50 border-transparent"
               />
+              {fieldErrors.parentPhone && (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.parentPhone}
+                </p>
+              )}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label htmlFor="group">Guruh</Label>
-              <Select
+              <Input
+                id="group"
                 value={formData.group}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, group: value })
+                onChange={(e) =>
+                  setFormData((p) => ({ ...p, group: e.target.value }))
                 }
-              >
-                <SelectTrigger className="bg-secondary/50 border-transparent">
-                  <SelectValue placeholder="Guruhni tanlang" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Kimyo 101">Kimyo 101</SelectItem>
-                  <SelectItem value="Kimyo 102">Kimyo 102</SelectItem>
-                  <SelectItem value="Biologiya 201">Biologiya 201</SelectItem>
-                  <SelectItem value="Biologiya 202">Biologiya 202</SelectItem>
-                </SelectContent>
-              </Select>
+              />
+              {fieldErrors.group && (
+                <p className="text-xs text-destructive">{fieldErrors.group}</p>
+              )}
             </div>
           </div>
 
@@ -320,8 +329,11 @@ export default function StudentsPage() {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Bekor qilish
             </Button>
-            <Button onClick={() => setIsDialogOpen(false)}>
-              {editingStudent ? "Saqlash" : "Qo'shish"}
+            <Button onClick={submitStudent} disabled={isSaving}>
+              {isSaving ? (
+                <CircleAlert className="mr-2 size-4 animate-spin" />
+              ) : null}
+              Saqlash
             </Button>
           </DialogFooter>
         </DialogContent>

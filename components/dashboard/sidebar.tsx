@@ -8,6 +8,7 @@ import {
   Users,
   GraduationCap,
   UsersRound,
+  BookOpen,
   ClipboardCheck,
   CreditCard,
   LogOut,
@@ -55,6 +56,12 @@ const allNavigation: NavItem[] = [
     feature: "groups",
   },
   {
+    name: "Darslar",
+    href: "/dashboard/lessons",
+    icon: BookOpen,
+    feature: "lessons",
+  },
+  {
     name: "Davomat",
     href: "/dashboard/attendance",
     icon: ClipboardCheck,
@@ -69,6 +76,12 @@ const allNavigation: NavItem[] = [
 ];
 
 const teacherNavigation: NavItem[] = [
+  {
+    name: "Darslar",
+    href: "/dashboard/lessons",
+    icon: BookOpen,
+    feature: "lessons",
+  },
   {
     name: "Davomat",
     href: "/dashboard/attendance",

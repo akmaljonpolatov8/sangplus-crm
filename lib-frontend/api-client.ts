@@ -1,17 +1,75 @@
-/**
- * API Client Utility for SangPlus CRM
- * Handles all HTTP requests with token management and error handling
- */
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-interface FetchOptions extends RequestInit {
-  data?: Record<string, any>;
+export interface ApiEnvelope<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+  error?: string | Record<string, unknown> | null;
 }
 
-/**
- * Get the auth token from sessionStorage
- */
+export class ApiClientError extends Error {
+  status: number;
+  rawError?: string | Record<string, unknown> | null;
+  fieldErrors?: Record<string, string>;
+
+  constructor(
+    message: string,
+    status: number,
+    rawError?: string | Record<string, unknown> | null,
+  ) {
+    super(message);
+    this.name = "ApiClientError";
+    this.status = status;
+    this.rawError = rawError;
+    this.fieldErrors =
+      rawError && typeof rawError === "object"
+        ? extractFieldErrors(rawError)
+        : undefined;
+  }
+}
+
+interface FetchOptions extends RequestInit {
+  data?: Record<string, unknown>;
+}
+
+function extractFieldErrors(
+  errorObj: Record<string, unknown>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const keys = Object.keys(errorObj);
+
+  for (const key of keys) {
+    const value = errorObj[key];
+    if (typeof value === "string") {
+      out[key] = value;
+      continue;
+    }
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      typeof value[0] === "string"
+    ) {
+      out[key] = value[0];
+    }
+  }
+
+  return out;
+}
+
+export function getApiErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError) return error.message;
+  if (error instanceof Error) return error.message;
+  return "Kutilmagan xatolik yuz berdi";
+}
+
+function clearAuthAndRedirect() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem("sangplus_token");
+  sessionStorage.removeItem("sangplus_role");
+  sessionStorage.removeItem("sangplus_username");
+  window.location.href = "/";
+}
+
 function getAuthToken(): string | null {
   if (typeof window !== "undefined") {
     return sessionStorage.getItem("sangplus_token");
@@ -19,14 +77,18 @@ function getAuthToken(): string | null {
   return null;
 }
 
-/**
- * Make an API request with automatic token handling
- */
-export async function apiClient(
+function buildUrl(endpoint: string): string {
+  if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
+    return endpoint;
+  }
+  return `${API_BASE_URL}${endpoint}`;
+}
+
+export async function apiClient<T = any>(
   endpoint: string,
   options: FetchOptions = {},
-): Promise<any> {
-  const url = `${API_BASE_URL}${endpoint}`;
+): Promise<T> {
+  const url = buildUrl(endpoint);
   const token = getAuthToken();
 
   const headers: Record<string, string> = {
@@ -37,7 +99,7 @@ export async function apiClient(
   };
 
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const fetchOptions: RequestInit = {
@@ -49,40 +111,45 @@ export async function apiClient(
     fetchOptions.body = JSON.stringify(options.data);
   }
 
-  try {
-    const response = await fetch(url, fetchOptions);
+  const response = await fetch(url, fetchOptions);
+  const payload = await response.json().catch(() => ({
+    success: false,
+    message: "Invalid JSON response",
+    data: null,
+  }));
 
-    // Handle 401 - Token expired or invalid
-    if (response.status === 401) {
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem("sangplus_token");
-        sessionStorage.removeItem("sangplus_role");
-        sessionStorage.removeItem("sangplus_username");
-        window.location.href = "/";
-      }
-      throw new Error("Unauthorized - Please login again");
+  const envelope = payload as Partial<ApiEnvelope<T>>;
+  const success = Boolean(envelope.success) && response.ok;
+
+  if (!success) {
+    const status = response.status;
+    const messageFromError =
+      typeof envelope.error === "string"
+        ? envelope.error
+        : envelope.message || `API xato: ${status}`;
+
+    const finalMessage =
+      status === 403
+        ? "Sizda bu amal uchun ruxsat yo'q"
+        : status === 401
+          ? "Sessiya tugagan. Qayta login qiling"
+          : messageFromError;
+
+    if (status === 401) {
+      clearAuthAndRedirect();
     }
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message ||
-          `API Error: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error(`API Error [${endpoint}]:`, error);
-    throw error;
+    throw new ApiClientError(finalMessage, status, envelope.error ?? null);
   }
+
+  return (envelope.data ?? null) as T;
 }
 
 /**
  * GET request
  */
-export function apiGet(endpoint: string, options?: FetchOptions) {
-  return apiClient(endpoint, {
+export function apiGet<T = any>(endpoint: string, options?: FetchOptions) {
+  return apiClient<T>(endpoint, {
     ...options,
     method: "GET",
   });
@@ -93,7 +160,7 @@ export function apiGet(endpoint: string, options?: FetchOptions) {
  */
 export function apiPost(
   endpoint: string,
-  data: Record<string, any>,
+  data: Record<string, unknown>,
   options?: FetchOptions,
 ) {
   return apiClient(endpoint, {
@@ -108,7 +175,7 @@ export function apiPost(
  */
 export function apiPut(
   endpoint: string,
-  data: Record<string, any>,
+  data: Record<string, unknown>,
   options?: FetchOptions,
 ) {
   return apiClient(endpoint, {
@@ -133,7 +200,7 @@ export function apiDelete(endpoint: string, options?: FetchOptions) {
  */
 export const authAPI = {
   login: (username: string, password: string, role: string) =>
-    apiPost("/api/auth/login", { username, password, role }),
+    apiPost("/api/auth/login", { username: username.trim(), password, role }),
 
   logout: () => apiPost("/api/auth/logout", {}),
 
@@ -203,7 +270,29 @@ export const groupsAPI = {
  * Payments API methods
  */
 export const paymentsAPI = {
-  list: () => apiGet("/api/payments"),
+  list: (params?: {
+    groupId?: string;
+    billingMonth?: string;
+    status?: string;
+    lessonDate?: string;
+  }) => {
+    const search = new URLSearchParams();
+
+    if (params?.groupId) search.set("groupId", params.groupId);
+    if (params?.billingMonth) search.set("billingMonth", params.billingMonth);
+    if (params?.status) search.set("status", params.status);
+    if (params?.lessonDate) search.set("lessonDate", params.lessonDate);
+
+    const query = search.toString();
+    return apiGet(`/api/payments${query ? `?${query}` : ""}`);
+  },
+
+  summary: (params: { groupId?: string; billingMonth: string }) => {
+    const search = new URLSearchParams();
+    if (params.groupId) search.set("groupId", params.groupId);
+    search.set("billingMonth", params.billingMonth);
+    return apiGet(`/api/payments/summary?${search.toString()}`);
+  },
 
   get: (id: string) => apiGet(`/api/payments/${id}`),
 
@@ -219,7 +308,13 @@ export const paymentsAPI = {
  * Attendance API methods
  */
 export const attendanceAPI = {
-  list: () => apiGet("/api/attendance"),
+  list: (params?: { lessonDate?: string; groupId?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.lessonDate) search.set("lessonDate", params.lessonDate);
+    if (params?.groupId) search.set("groupId", params.groupId);
+    const query = search.toString();
+    return apiGet(`/api/attendance${query ? `?${query}` : ""}`);
+  },
 
   get: (id: string) => apiGet(`/api/attendance/${id}`),
 

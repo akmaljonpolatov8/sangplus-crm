@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib-frontend/utils";
 import { useRole, type UserRole } from "@/lib-frontend/role-context";
-import { authAPI } from "@/lib-frontend/api-client";
+import { authAPI, getApiErrorMessage } from "@/lib-frontend/api-client";
 
 type LoginRole = "owner" | "manager" | "teacher";
 
@@ -79,7 +79,7 @@ export default function LoginPage() {
     try {
       // Call backend API
       const response = await authAPI.login(
-        formData.username,
+        formData.username.trim(),
         formData.password,
         selectedRole,
       );
@@ -91,7 +91,7 @@ export default function LoginPage() {
 
       // Store role and username
       setRole(selectedRole as UserRole);
-      setUserName(response.user?.username || formData.username);
+      setUserName(response?.user?.username || formData.username.trim());
 
       // Clear form
       setFormData({ username: "", password: "" });
@@ -103,11 +103,8 @@ export default function LoginPage() {
         router.push("/dashboard");
       }
     } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Login qilishda xato yuz berdi. Qayta urinib ko'ring.";
-      setError(errorMessage);
+      setError(getApiErrorMessage(err));
+    } finally {
       setIsLoading(false);
     }
   };
