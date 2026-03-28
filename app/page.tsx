@@ -4,7 +4,6 @@ import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
-  FlaskConical,
   Eye,
   EyeOff,
   Loader2,
@@ -13,9 +12,6 @@ import {
   BookOpen,
   AlertCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib-frontend/utils";
 import { useRole, type UserRole } from "@/lib-frontend/role-context";
@@ -40,6 +36,14 @@ const roles: {
     icon: BookOpen,
   },
 ];
+
+function toUserRole(role: string): UserRole {
+  const normalized = role.trim().toLowerCase();
+  if (normalized === "owner" || normalized === "manager" || normalized === "teacher") {
+    return normalized;
+  }
+  return "manager";
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -84,20 +88,21 @@ export default function LoginPage() {
         selectedRole,
       );
 
-      // Store token if backend returns it
-      if (response.token) {
+      if (response?.token) {
         sessionStorage.setItem("sangplus_token", response.token);
       }
 
-      // Store role and username
-      setRole(selectedRole as UserRole);
+      const apiRole = toUserRole(response?.user?.role || selectedRole);
+
+      // Store role and username from backend response
+      setRole(apiRole);
       setUserName(response?.user?.username || formData.username.trim());
 
       // Clear form
       setFormData({ username: "", password: "" });
 
       // Redirect based on role
-      if (selectedRole === "teacher") {
+      if (apiRole === "teacher") {
         router.push("/dashboard/attendance");
       } else {
         router.push("/dashboard");

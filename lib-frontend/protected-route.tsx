@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useRole } from "./role-context";
 
 interface ProtectedRouteProps {
@@ -14,7 +14,6 @@ export function ProtectedRoute({
   requiredRole,
 }: ProtectedRouteProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const { role, isLoaded } = useRole();
 
   useEffect(() => {

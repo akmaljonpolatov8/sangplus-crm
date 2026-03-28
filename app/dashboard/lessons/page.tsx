@@ -7,12 +7,14 @@ import { DataTable } from "@/components/dashboard/data-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiErrorMessage, apiGet } from "@/lib-frontend/api-client";
+import { getApiErrorMessage, lessonsAPI } from "../../../lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 import { toYMD } from "@/lib-frontend/utils";
 
 interface Lesson {
   id: string;
+  group?: { name?: string | null };
+  teacher?: { fullName?: string | null };
   groupName?: string | null;
   teacherName?: string | null;
   lessonDate?: string | null;
@@ -46,9 +48,15 @@ export default function LessonsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const query = lessonDate ? `?lessonDate=${lessonDate}` : "";
-      const data = await apiGet(`/api/lessons${query}`);
-      setLessons(Array.isArray(data) ? data : []);
+      const data = await lessonsAPI.list({ lessonDate });
+      const list = Array.isArray(data) ? data : [];
+      setLessons(
+        list.map((item: Lesson) => ({
+          ...item,
+          groupName: item.groupName || item.group?.name || "-",
+          teacherName: item.teacherName || item.teacher?.fullName || "-",
+        })),
+      );
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {

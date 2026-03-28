@@ -23,42 +23,52 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
-import {
-  ApiClientError,
-  getApiErrorMessage,
-  groupsAPI,
-} from "@/lib-frontend/api-client";
+import { ApiClientError, getApiErrorMessage, groupsAPI } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 import { formatCurrency } from "@/lib-frontend/utils";
 
-interface Group {
+interface GroupRecord {
   id: string;
-  name?: string | null;
-  teacher?: string | null;
-  teacherName?: string | null;
-  days?: string | null;
-  time?: string | null;
-  monthlyFee?: number | string | null;
-  students?: number | null;
-  status?: "active" | "inactive" | null;
+  name?: string;
+  subject?: string;
+  scheduleDays?: string[];
+  startTime?: string;
+  endTime?: string;
+  monthlyFee?: number | string;
+  teacherId?: string;
+  teacher?: { id?: string; fullName?: string };
+  isActive?: boolean;
 }
 
 interface GroupForm {
   id?: string;
   name: string;
-  teacher: string;
-  days: string;
-  time: string;
+  subject: string;
+  scheduleDaysText: string;
+  startTime: string;
+  endTime: string;
   monthlyFee: string;
+  teacherId: string;
+  isActive: string;
 }
 
 const initialForm: GroupForm = {
   name: "",
-  teacher: "",
-  days: "",
-  time: "",
+  subject: "",
+  scheduleDaysText: "",
+  startTime: "",
+  endTime: "",
   monthlyFee: "",
+  teacherId: "",
+  isActive: "true",
 };
+
+function parseScheduleDays(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 export default function GroupsPage() {
   const router = useRouter();
@@ -66,7 +76,7 @@ export default function GroupsPage() {
   const canAccess = hasAccess(role, "groups");
   const isOwner = role === "owner";
 
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [groups, setGroups] = useState<GroupRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +91,7 @@ export default function GroupsPage() {
     setError(null);
     try {
       const data = await groupsAPI.list();
-      setGroups(Array.isArray(data) ? data : []);
+      setGroups(Array.isArray(data) ? (data as GroupRecord[]) : []);
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -98,21 +108,24 @@ export default function GroupsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
 
-  const handleAddNew = () => {
+  const openCreate = () => {
     setFormData(initialForm);
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (group: Group) => {
+  const openEdit = (group: GroupRecord) => {
     setFormData({
       id: group.id,
       name: group.name || "",
-      teacher: group.teacher || group.teacherName || "",
-      days: group.days || "",
-      time: group.time || "",
+      subject: group.subject || "",
+      scheduleDaysText: (group.scheduleDays || []).join(", "),
+      startTime: group.startTime || "",
+      endTime: group.endTime || "",
       monthlyFee: String(group.monthlyFee ?? ""),
+      teacherId: group.teacherId || group.teacher?.id || "",
+      isActive: String(Boolean(group.isActive)),
     });
     setFieldErrors({});
     setFormError(null);
@@ -127,9 +140,12 @@ export default function GroupsPage() {
     try {
       const payload: Record<string, unknown> = {
         name: formData.name.trim(),
-        teacher: formData.teacher.trim() || null,
-        days: formData.days.trim() || null,
-        time: formData.time.trim() || null,
+        subject: formData.subject.trim() || null,
+        scheduleDays: parseScheduleDays(formData.scheduleDaysText),
+        startTime: formData.startTime.trim() || null,
+        endTime: formData.endTime.trim() || null,
+        teacherId: formData.teacherId.trim() || null,
+        isActive: formData.isActive === "true",
       };
 
       if (isOwner && formData.monthlyFee.trim()) {
@@ -145,11 +161,8 @@ export default function GroupsPage() {
       setIsDialogOpen(false);
       await loadGroups();
     } catch (err) {
-      if (
-        err instanceof ApiClientError &&
-        (err.status === 400 || err.status === 409)
-      ) {
-        if (err.fieldErrors) setFieldErrors(err.fieldErrors);
+      if (err instanceof ApiClientError && (err.status === 400 || err.status === 409) && err.fieldErrors) {
+        setFieldErrors(err.fieldErrors);
       }
       setFormError(getApiErrorMessage(err));
     } finally {
@@ -161,57 +174,47 @@ export default function GroupsPage() {
     () => [
       {
         key: "name",
-        header: "Guruh nomi",
-        render: (group: Group) => (
-          <span className="font-medium text-foreground">
-            {group.name || "-"}
+        header: "Guruh",
+        render: (group: GroupRecord) => <span className="font-medium">{group.name || "-"}</span>,
+      },
+      {
+        key: "subject",
+        header: "Fan",
+        render: (group: GroupRecord) => <span className="text-muted-foreground">{group.subject || "-"}</span>,
+      },
+      {
+        key: "schedule",
+        header: "Jadval",
+        render: (group: GroupRecord) => (
+          <span className="text-muted-foreground">
+            {(group.scheduleDays || []).join(", ") || "-"} {group.startTime || ""} {group.endTime ? `- ${group.endTime}` : ""}
           </span>
         ),
       },
       {
         key: "teacher",
         header: "O'qituvchi",
-        render: (group: Group) => (
-          <span className="text-muted-foreground">
-            {group.teacherName || group.teacher || "-"}
-          </span>
-        ),
-      },
-      {
-        key: "days",
-        header: "Dars kunlari",
-        render: (group: Group) => (
-          <span className="text-muted-foreground">{group.days || "-"}</span>
-        ),
-      },
-      {
-        key: "time",
-        header: "Dars vaqti",
-        render: (group: Group) => (
-          <span className="text-muted-foreground">{group.time || "-"}</span>
+        render: (group: GroupRecord) => (
+          <span className="text-muted-foreground">{group.teacher?.fullName || group.teacherId || "-"}</span>
         ),
       },
       {
         key: "monthlyFee",
-        header: "Oylik to'lov",
-        render: (group: Group) => (
-          <span className="text-muted-foreground">
-            {group.monthlyFee == null ? "-" : formatCurrency(group.monthlyFee)}
-          </span>
+        header: "Monthly fee",
+        render: (group: GroupRecord) => (
+          <span className="text-muted-foreground">{group.monthlyFee == null ? "-" : formatCurrency(group.monthlyFee)}</span>
         ),
       },
       {
-        key: "status",
+        key: "isActive",
         header: "Holati",
-        render: (group: Group) => (
-          <StatusBadge status={group.status || "inactive"} />
-        ),
+        render: (group: GroupRecord) => <StatusBadge status={group.isActive ? "active" : "inactive"} />,
       },
       {
         key: "actions",
         header: "Amallar",
         className: "text-right",
-        render: (group: Group) => (
+        render: (group: GroupRecord) => (
           <div className="flex justify-end">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -220,7 +223,7 @@ export default function GroupsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleEdit(group)}>
+                <DropdownMenuItem onClick={() => openEdit(group)}>
                   <Pencil className="mr-2 size-4" />
                   Tahrirlash
                 </DropdownMenuItem>
@@ -240,130 +243,81 @@ export default function GroupsPage() {
       <DashboardHeader title="Guruhlar" />
 
       <div className="space-y-4 p-6">
-        {error && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
-        )}
+        {error && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
+        {isLoading && <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>}
 
         <DataTable
           data={groups}
           columns={columns}
           searchPlaceholder="Guruh qidirish..."
           addButtonLabel="Guruh qo'shish"
-          onAddClick={handleAddNew}
+          onAddClick={openCreate}
           showFilters={false}
         />
-
-        {!isLoading && groups.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground">
-            Guruhlar topilmadi
-          </p>
-        )}
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}
-            </DialogTitle>
-            <DialogDescription>
-              `monthlyFee` MANAGER flow uchun majburiy emas.
-            </DialogDescription>
+            <DialogTitle>{formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}</DialogTitle>
+            <DialogDescription>Backend contract: subject, scheduleDays, startTime, endTime, teacherId, isActive.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            {formError && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
-                {formError}
-              </div>
-            )}
+            {formError && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{formError}</div>}
 
             <div className="space-y-1">
-              <Label htmlFor="name">Guruh nomi</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, name: e.target.value }))
-                }
-              />
-              {fieldErrors.name && (
-                <p className="text-xs text-destructive">{fieldErrors.name}</p>
-              )}
+              <Label htmlFor="name">Nomi</Label>
+              <Input id="name" value={formData.name} onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))} />
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="teacher">O'qituvchi</Label>
-              <Input
-                id="teacher"
-                value={formData.teacher}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, teacher: e.target.value }))
-                }
-              />
-              {fieldErrors.teacher && (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.teacher}
-                </p>
-              )}
+              <Label htmlFor="subject">Fan</Label>
+              <Input id="subject" value={formData.subject} onChange={(e) => setFormData((prev) => ({ ...prev, subject: e.target.value }))} />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="scheduleDaysText">Schedule days (vergul bilan)</Label>
+              <Input id="scheduleDaysText" value={formData.scheduleDaysText} onChange={(e) => setFormData((prev) => ({ ...prev, scheduleDaysText: e.target.value }))} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="days">Dars kunlari</Label>
-                <Input
-                  id="days"
-                  value={formData.days}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, days: e.target.value }))
-                  }
-                />
+                <Label htmlFor="startTime">Start time</Label>
+                <Input id="startTime" value={formData.startTime} onChange={(e) => setFormData((prev) => ({ ...prev, startTime: e.target.value }))} />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="time">Dars vaqti</Label>
-                <Input
-                  id="time"
-                  value={formData.time}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, time: e.target.value }))
-                  }
-                />
+                <Label htmlFor="endTime">End time</Label>
+                <Input id="endTime" value={formData.endTime} onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value }))} />
               </div>
             </div>
 
             {isOwner && (
               <div className="space-y-1">
                 <Label htmlFor="monthlyFee">Monthly fee</Label>
-                <Input
-                  id="monthlyFee"
-                  value={formData.monthlyFee}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, monthlyFee: e.target.value }))
-                  }
-                />
-                {fieldErrors.monthlyFee && (
-                  <p className="text-xs text-destructive">
-                    {fieldErrors.monthlyFee}
-                  </p>
-                )}
+                <Input id="monthlyFee" value={formData.monthlyFee} onChange={(e) => setFormData((prev) => ({ ...prev, monthlyFee: e.target.value }))} />
               </div>
             )}
+
+            <div className="space-y-1">
+              <Label htmlFor="teacherId">Teacher ID</Label>
+              <Input id="teacherId" value={formData.teacherId} onChange={(e) => setFormData((prev) => ({ ...prev, teacherId: e.target.value }))} />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="isActive">Is active (true/false)</Label>
+              <Input id="isActive" value={formData.isActive} onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.value }))} />
+            </div>
+
+            {Object.keys(fieldErrors).map((key) => (
+              <p key={key} className="text-xs text-destructive">{fieldErrors[key]}</p>
+            ))}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Bekor qilish
-            </Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Bekor qilish</Button>
             <Button onClick={submitGroup} disabled={isSaving}>
-              {isSaving ? (
-                <CircleAlert className="mr-2 size-4 animate-spin" />
-              ) : null}
+              {isSaving ? <CircleAlert className="mr-2 size-4 animate-spin" /> : null}
               Saqlash
             </Button>
           </DialogFooter>

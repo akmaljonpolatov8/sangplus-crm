@@ -23,44 +23,64 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
-import {
-  ApiClientError,
-  getApiErrorMessage,
-  studentsAPI,
-} from "@/lib-frontend/api-client";
+import { ApiClientError, getApiErrorMessage, studentsAPI } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 
-interface Student {
+interface StudentRecord {
   id: string;
-  name?: string | null;
-  phone?: string | null;
-  parentPhone?: string | null;
-  group?: string | null;
-  groupName?: string | null;
-  status?: "active" | "inactive" | null;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  parentPhone?: string;
+  parentName?: string;
+  notes?: string;
+  status?: "active" | "inactive";
+  groups?: Array<{ id: string; name?: string }>;
 }
 
 interface StudentForm {
   id?: string;
-  name: string;
+  fullName: string;
   phone: string;
   parentPhone: string;
-  group: string;
+  parentName: string;
+  notes: string;
+  status: "active" | "inactive";
+  groupIdsText: string;
 }
 
 const initialForm: StudentForm = {
-  name: "",
+  fullName: "",
   phone: "",
   parentPhone: "",
-  group: "",
+  parentName: "",
+  notes: "",
+  status: "active",
+  groupIdsText: "",
 };
+
+function splitFullName(value: string): { firstName: string; lastName: string } {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized) return { firstName: "", lastName: "" };
+  const parts = normalized.split(" ");
+  const firstName = parts[0] || "";
+  const lastName = parts.slice(1).join(" ") || "-";
+  return { firstName, lastName };
+}
+
+function toGroupIds(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 export default function StudentsPage() {
   const router = useRouter();
   const { role } = useRole();
   const canAccess = hasAccess(role, "students");
 
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +95,7 @@ export default function StudentsPage() {
     setError(null);
     try {
       const data = await studentsAPI.list();
-      setStudents(Array.isArray(data) ? data : []);
+      setStudents(Array.isArray(data) ? (data as StudentRecord[]) : []);
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -92,20 +112,23 @@ export default function StudentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
 
-  const handleAddNew = () => {
+  const openCreate = () => {
     setFormData(initialForm);
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (student: Student) => {
+  const openEdit = (student: StudentRecord) => {
     setFormData({
       id: student.id,
-      name: student.name || "",
+      fullName: `${student.firstName || ""} ${student.lastName || ""}`.trim(),
       phone: student.phone || "",
       parentPhone: student.parentPhone || "",
-      group: student.group || student.groupName || "",
+      parentName: student.parentName || "",
+      notes: student.notes || "",
+      status: student.status || "active",
+      groupIdsText: (student.groups || []).map((g) => g.id).join(", "),
     });
     setFieldErrors({});
     setFormError(null);
@@ -117,12 +140,18 @@ export default function StudentsPage() {
     setFormError(null);
     setFieldErrors({});
 
+    const { firstName, lastName } = splitFullName(formData.fullName);
+
     try {
       const payload = {
-        name: formData.name.trim(),
+        firstName,
+        lastName,
         phone: formData.phone.trim(),
         parentPhone: formData.parentPhone.trim() || null,
-        group: formData.group.trim() || null,
+        parentName: formData.parentName.trim() || null,
+        notes: formData.notes.trim() || null,
+        status: formData.status,
+        groupIds: toGroupIds(formData.groupIdsText),
       };
 
       if (formData.id) {
@@ -134,11 +163,8 @@ export default function StudentsPage() {
       setIsDialogOpen(false);
       await loadStudents();
     } catch (err) {
-      if (
-        err instanceof ApiClientError &&
-        (err.status === 400 || err.status === 409)
-      ) {
-        if (err.fieldErrors) setFieldErrors(err.fieldErrors);
+      if (err instanceof ApiClientError && (err.status === 400 || err.status === 409) && err.fieldErrors) {
+        setFieldErrors(err.fieldErrors);
       }
       setFormError(getApiErrorMessage(err));
     } finally {
@@ -149,51 +175,43 @@ export default function StudentsPage() {
   const columns = useMemo(
     () => [
       {
-        key: "name",
+        key: "fullName",
         header: "Ism familiya",
-        render: (student: Student) => (
+        render: (student: StudentRecord) => (
           <span className="font-medium text-foreground">
-            {student.name || "-"}
+            {`${student.firstName || ""} ${student.lastName || ""}`.trim() || "-"}
           </span>
         ),
       },
       {
         key: "phone",
         header: "Telefon",
-        render: (student: Student) => (
-          <span className="text-muted-foreground">{student.phone || "-"}</span>
-        ),
+        render: (student: StudentRecord) => <span className="text-muted-foreground">{student.phone || "-"}</span>,
       },
       {
-        key: "parentPhone",
-        header: "Ota-ona raqami",
-        render: (student: Student) => (
-          <span className="text-muted-foreground">
-            {student.parentPhone || "-"}
-          </span>
-        ),
+        key: "parentName",
+        header: "Ota-ona",
+        render: (student: StudentRecord) => <span className="text-muted-foreground">{student.parentName || "-"}</span>,
       },
       {
-        key: "group",
-        header: "Guruh",
-        render: (student: Student) => (
+        key: "groups",
+        header: "Guruhlar",
+        render: (student: StudentRecord) => (
           <span className="text-muted-foreground">
-            {student.groupName || student.group || "-"}
+            {(student.groups || []).map((g) => g.name || g.id).join(", ") || "-"}
           </span>
         ),
       },
       {
         key: "status",
         header: "Holati",
-        render: (student: Student) => (
-          <StatusBadge status={student.status || "inactive"} />
-        ),
+        render: (student: StudentRecord) => <StatusBadge status={student.status || "inactive"} />,
       },
       {
         key: "actions",
         header: "Amallar",
         className: "text-right",
-        render: (student: Student) => (
+        render: (student: StudentRecord) => (
           <div className="flex justify-end">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -202,7 +220,7 @@ export default function StudentsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleEdit(student)}>
+                <DropdownMenuItem onClick={() => openEdit(student)}>
                   <Pencil className="mr-2 size-4" />
                   Tahrirlash
                 </DropdownMenuItem>
@@ -222,117 +240,73 @@ export default function StudentsPage() {
       <DashboardHeader title="O'quvchilar" />
 
       <div className="space-y-4 p-6">
-        {error && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
-        )}
+        {error && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
+        {isLoading && <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>}
 
         <DataTable
           data={students}
           columns={columns}
           searchPlaceholder="O'quvchi qidirish..."
           addButtonLabel="O'quvchi qo'shish"
-          onAddClick={handleAddNew}
+          onAddClick={openCreate}
           showFilters={false}
         />
-
-        {!isLoading && students.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground">
-            O'quvchilar topilmadi
-          </p>
-        )}
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {formData.id ? "O'quvchini tahrirlash" : "Yangi o'quvchi"}
-            </DialogTitle>
-            <DialogDescription>
-              Ma'lumotlarni API response asosida saqlaydi.
-            </DialogDescription>
+            <DialogTitle>{formData.id ? "O'quvchini tahrirlash" : "Yangi o'quvchi"}</DialogTitle>
+            <DialogDescription>Backend payload: firstName, lastName, groupIds va boshqa maydonlar.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            {formError && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
-                {formError}
-              </div>
-            )}
+            {formError && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{formError}</div>}
 
             <div className="space-y-1">
-              <Label htmlFor="name">Ism familiya</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, name: e.target.value }))
-                }
-              />
-              {fieldErrors.name && (
-                <p className="text-xs text-destructive">{fieldErrors.name}</p>
-              )}
+              <Label htmlFor="fullName">Ism familiya</Label>
+              <Input id="fullName" value={formData.fullName} onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))} />
+              {fieldErrors.firstName && <p className="text-xs text-destructive">{fieldErrors.firstName}</p>}
+              {fieldErrors.lastName && <p className="text-xs text-destructive">{fieldErrors.lastName}</p>}
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="phone">Telefon</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, phone: e.target.value }))
-                }
-              />
-              {fieldErrors.phone && (
-                <p className="text-xs text-destructive">{fieldErrors.phone}</p>
-              )}
+              <Input id="phone" value={formData.phone} onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))} />
+              {fieldErrors.phone && <p className="text-xs text-destructive">{fieldErrors.phone}</p>}
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="parentPhone">Ota-ona telefoni</Label>
-              <Input
-                id="parentPhone"
-                value={formData.parentPhone}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, parentPhone: e.target.value }))
-                }
-              />
-              {fieldErrors.parentPhone && (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.parentPhone}
-                </p>
-              )}
+              <Input id="parentPhone" value={formData.parentPhone} onChange={(e) => setFormData((prev) => ({ ...prev, parentPhone: e.target.value }))} />
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="group">Guruh</Label>
-              <Input
-                id="group"
-                value={formData.group}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, group: e.target.value }))
-                }
-              />
-              {fieldErrors.group && (
-                <p className="text-xs text-destructive">{fieldErrors.group}</p>
-              )}
+              <Label htmlFor="parentName">Ota-ona ismi</Label>
+              <Input id="parentName" value={formData.parentName} onChange={(e) => setFormData((prev) => ({ ...prev, parentName: e.target.value }))} />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="notes">Izoh</Label>
+              <Input id="notes" value={formData.notes} onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))} />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="status">Status</Label>
+              <Input id="status" value={formData.status} onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value as "active" | "inactive" }))} />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="groupIdsText">Group IDs (vergul bilan)</Label>
+              <Input id="groupIdsText" value={formData.groupIdsText} onChange={(e) => setFormData((prev) => ({ ...prev, groupIdsText: e.target.value }))} />
+              {fieldErrors.groupIds && <p className="text-xs text-destructive">{fieldErrors.groupIds}</p>}
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Bekor qilish
-            </Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Bekor qilish</Button>
             <Button onClick={submitStudent} disabled={isSaving}>
-              {isSaving ? (
-                <CircleAlert className="mr-2 size-4 animate-spin" />
-              ) : null}
+              {isSaving ? <CircleAlert className="mr-2 size-4 animate-spin" /> : null}
               Saqlash
             </Button>
           </DialogFooter>

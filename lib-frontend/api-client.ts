@@ -36,23 +36,16 @@ function extractFieldErrors(
   errorObj: Record<string, unknown>,
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  const keys = Object.keys(errorObj);
-
-  for (const key of keys) {
+  for (const key of Object.keys(errorObj)) {
     const value = errorObj[key];
     if (typeof value === "string") {
       out[key] = value;
       continue;
     }
-    if (
-      Array.isArray(value) &&
-      value.length > 0 &&
-      typeof value[0] === "string"
-    ) {
+    if (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") {
       out[key] = value[0];
     }
   }
-
   return out;
 }
 
@@ -84,7 +77,7 @@ function buildUrl(endpoint: string): string {
   return `${API_BASE_URL}${endpoint}`;
 }
 
-export async function apiClient<T = any>(
+export async function apiClient<T = unknown>(
   endpoint: string,
   options: FetchOptions = {},
 ): Promise<T> {
@@ -145,144 +138,114 @@ export async function apiClient<T = any>(
   return (envelope.data ?? null) as T;
 }
 
-/**
- * GET request
- */
-export function apiGet<T = any>(endpoint: string, options?: FetchOptions) {
+export function apiGet<T = unknown>(endpoint: string, options?: FetchOptions) {
   return apiClient<T>(endpoint, {
     ...options,
     method: "GET",
   });
 }
 
-/**
- * POST request
- */
-export function apiPost(
+export function apiPost<T = unknown>(
   endpoint: string,
   data: Record<string, unknown>,
   options?: FetchOptions,
 ) {
-  return apiClient(endpoint, {
+  return apiClient<T>(endpoint, {
     ...options,
     method: "POST",
     data,
   });
 }
 
-/**
- * PUT request
- */
-export function apiPut(
+export function apiPatch<T = unknown>(
   endpoint: string,
   data: Record<string, unknown>,
   options?: FetchOptions,
 ) {
-  return apiClient(endpoint, {
+  return apiClient<T>(endpoint, {
     ...options,
-    method: "PUT",
+    method: "PATCH",
     data,
   });
 }
 
-/**
- * DELETE request
- */
-export function apiDelete(endpoint: string, options?: FetchOptions) {
-  return apiClient(endpoint, {
+export function apiDelete<T = unknown>(endpoint: string, options?: FetchOptions) {
+  return apiClient<T>(endpoint, {
     ...options,
     method: "DELETE",
   });
 }
 
-/**
- * Auth API methods
- */
+export interface LoginResponse {
+  token: string;
+  user: {
+    id: string;
+    username: string;
+    role: string;
+    fullName?: string;
+  };
+}
+
 export const authAPI = {
   login: (username: string, password: string, role: string) =>
-    apiPost("/api/auth/login", { username: username.trim(), password, role }),
-
-  logout: () => apiPost("/api/auth/logout", {}),
+    apiPost<LoginResponse>("/api/auth/login", {
+      username: username.trim(),
+      password,
+      role,
+    }),
 
   getCurrentUser: () => apiGet("/api/auth/me"),
-
-  refreshToken: () => apiPost("/api/auth/refresh-token", {}),
 };
 
-/**
- * Dashboard API methods
- */
-export const dashboardAPI = {
-  getStats: () => apiGet("/api/dashboard/stats"),
-
-  getActivity: () => apiGet("/api/dashboard/activity"),
-};
-
-/**
- * Students API methods
- */
 export const studentsAPI = {
   list: () => apiGet("/api/students"),
-
   get: (id: string) => apiGet(`/api/students/${id}`),
-
-  create: (data: Record<string, any>) => apiPost("/api/students", data),
-
-  update: (id: string, data: Record<string, any>) =>
-    apiPut(`/api/students/${id}`, data),
-
+  create: (data: Record<string, unknown>) => apiPost("/api/students", data),
+  update: (id: string, data: Record<string, unknown>) =>
+    apiPatch(`/api/students/${id}`, data),
   delete: (id: string) => apiDelete(`/api/students/${id}`),
 };
 
-/**
- * Teachers API methods
- */
 export const teachersAPI = {
   list: () => apiGet("/api/teachers"),
-
   get: (id: string) => apiGet(`/api/teachers/${id}`),
-
-  create: (data: Record<string, any>) => apiPost("/api/teachers", data),
-
-  update: (id: string, data: Record<string, any>) =>
-    apiPut(`/api/teachers/${id}`, data),
-
+  create: (data: Record<string, unknown>) => apiPost("/api/teachers", data),
+  update: (id: string, data: Record<string, unknown>) =>
+    apiPatch(`/api/teachers/${id}`, data),
   delete: (id: string) => apiDelete(`/api/teachers/${id}`),
 };
 
-/**
- * Groups API methods
- */
 export const groupsAPI = {
   list: () => apiGet("/api/groups"),
-
   get: (id: string) => apiGet(`/api/groups/${id}`),
-
-  create: (data: Record<string, any>) => apiPost("/api/groups", data),
-
-  update: (id: string, data: Record<string, any>) =>
-    apiPut(`/api/groups/${id}`, data),
-
+  create: (data: Record<string, unknown>) => apiPost("/api/groups", data),
+  update: (id: string, data: Record<string, unknown>) =>
+    apiPatch(`/api/groups/${id}`, data),
   delete: (id: string) => apiDelete(`/api/groups/${id}`),
 };
 
-/**
- * Payments API methods
- */
+export const lessonsAPI = {
+  list: (params?: { lessonDate?: string; groupId?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.lessonDate) search.set("lessonDate", params.lessonDate);
+    if (params?.groupId) search.set("groupId", params.groupId);
+    const query = search.toString();
+    return apiGet(`/api/lessons${query ? `?${query}` : ""}`);
+  },
+
+  create: (data: Record<string, unknown>) => apiPost("/api/lessons", data),
+};
+
 export const paymentsAPI = {
   list: (params?: {
     groupId?: string;
     billingMonth?: string;
     status?: string;
-    lessonDate?: string;
   }) => {
     const search = new URLSearchParams();
-
     if (params?.groupId) search.set("groupId", params.groupId);
     if (params?.billingMonth) search.set("billingMonth", params.billingMonth);
     if (params?.status) search.set("status", params.status);
-    if (params?.lessonDate) search.set("lessonDate", params.lessonDate);
-
     const query = search.toString();
     return apiGet(`/api/payments${query ? `?${query}` : ""}`);
   },
@@ -295,33 +258,21 @@ export const paymentsAPI = {
   },
 
   get: (id: string) => apiGet(`/api/payments/${id}`),
-
-  create: (data: Record<string, any>) => apiPost("/api/payments", data),
-
-  update: (id: string, data: Record<string, any>) =>
-    apiPut(`/api/payments/${id}`, data),
-
+  create: (data: Record<string, unknown>) => apiPost("/api/payments", data),
+  update: (id: string, data: Record<string, unknown>) =>
+    apiPatch(`/api/payments/${id}`, data),
   delete: (id: string) => apiDelete(`/api/payments/${id}`),
 };
 
-/**
- * Attendance API methods
- */
 export const attendanceAPI = {
-  list: (params?: { lessonDate?: string; groupId?: string }) => {
+  list: (params?: { lessonDate?: string; groupId?: string; lessonId?: string }) => {
     const search = new URLSearchParams();
     if (params?.lessonDate) search.set("lessonDate", params.lessonDate);
     if (params?.groupId) search.set("groupId", params.groupId);
+    if (params?.lessonId) search.set("lessonId", params.lessonId);
     const query = search.toString();
     return apiGet(`/api/attendance${query ? `?${query}` : ""}`);
   },
 
-  get: (id: string) => apiGet(`/api/attendance/${id}`),
-
-  create: (data: Record<string, any>) => apiPost("/api/attendance", data),
-
-  update: (id: string, data: Record<string, any>) =>
-    apiPut(`/api/attendance/${id}`, data),
-
-  delete: (id: string) => apiDelete(`/api/attendance/${id}`),
+  create: (data: Record<string, unknown>) => apiPost("/api/attendance", data),
 };

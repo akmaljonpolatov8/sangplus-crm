@@ -30,13 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  MoreHorizontal,
-  Plus,
-  CreditCard,
-  CircleAlert,
-  CheckCircle,
-} from "lucide-react";
+import { MoreHorizontal, CircleAlert, CheckCircle } from "lucide-react";
 import {
   ApiClientError,
   getApiErrorMessage,
@@ -48,97 +42,104 @@ import { formatCurrency, normalizeMoney, toYMD } from "@/lib-frontend/utils";
 
 type PaymentStatus = "paid" | "unpaid" | "partial" | "overdue";
 
-interface PaymentItem {
+interface PaymentRaw {
   id: string;
-  studentName?: string | null;
-  student?: string | null;
-  studentId?: string | null;
-  groupName?: string | null;
-  group?: string | null;
-  groupId?: string | null;
-  billingMonth?: string | null;
-  amount?: number | string | null;
-  paidAmount?: number | string | null;
-  debtAmount?: number | string | null;
-  status?: PaymentStatus | string | null;
-  paymentDate?: string | null;
-  paidDate?: string | null;
+  student?: { id?: string; firstName?: string; lastName?: string; fullName?: string };
+  group?: { id?: string; name?: string };
+  billingMonth?: string;
+  dueDate?: string;
+  amount?: number | string;
+  paidAmount?: number | string;
+  status?: PaymentStatus;
+  paidAt?: string | null;
+  notes?: string | null;
+}
+
+interface PaymentView {
+  id: string;
+  studentId: string;
+  studentName: string;
+  groupId: string;
+  groupName: string;
+  billingMonth: string;
+  dueDate: string;
+  amount: number;
+  paidAmount: number;
+  debtAmount: number;
+  status: PaymentStatus;
+  paidAt: string;
+  notes: string;
 }
 
 interface GroupItem {
   id: string;
-  name?: string | null;
-  monthlyFee?: number | string | null;
+  name?: string;
 }
 
-interface PaymentSummary {
-  group?: {
-    id?: string;
-    name?: string;
-  } | null;
-  billingMonth?: string | null;
-  dueDate?: string | null;
+interface Summary {
+  group?: { id?: string; name?: string };
+  billingMonth?: string;
+  dueDate?: string;
   totals?: {
     totalAmount?: number | string;
     paidAmount?: number | string;
     debtAmount?: number | string;
-  } | null;
-  paidStudents?: Array<{
-    studentId?: string;
-    studentName?: string;
-    amount?: number | string;
-  }>;
-  debtors?: Array<{
-    studentId?: string;
-    studentName?: string;
-    debtAmount?: number | string;
-  }>;
-  entries?: Array<{
-    studentId?: string;
-    studentName?: string;
-    amount?: number | string;
-    paidAmount?: number | string;
-    debtAmount?: number | string;
-    status?: string;
-  }>;
+  };
+  paidStudents?: Array<{ studentId?: string; studentName?: string; amount?: number | string }>;
+  debtors?: Array<{ studentId?: string; studentName?: string; debtAmount?: number | string }>;
+  entries?: Array<{ studentId?: string; studentName?: string; amount?: number | string; paidAmount?: number | string; debtAmount?: number | string }>;
 }
 
-interface PaymentFormState {
+interface PaymentForm {
   id?: string;
   studentId: string;
   groupId: string;
   billingMonth: string;
   amount: string;
   paidAmount: string;
-  paymentDate: string;
+  notes: string;
 }
 
-const initialForm: PaymentFormState = {
+const initialForm: PaymentForm = {
   studentId: "",
   groupId: "",
   billingMonth: toYMD(new Date()),
   amount: "",
   paidAmount: "",
-  paymentDate: toYMD(new Date()),
+  notes: "",
 };
 
-function safeStatus(value: unknown): PaymentStatus {
-  if (
-    value === "paid" ||
-    value === "unpaid" ||
-    value === "partial" ||
-    value === "overdue"
-  ) {
-    return value;
-  }
-  return "unpaid";
+function summaryDueDate(summary: Summary | null, billingMonth: string): string {
+  const fromApi = toYMD(summary?.dueDate);
+  if (fromApi) return fromApi;
+  const base = toYMD(summary?.billingMonth || billingMonth);
+  if (!base) return "-";
+  return `${base.slice(0, 8)}15`;
 }
 
-function dueDateFromMonth(month: string): string {
-  if (!month) return "-";
-  const ymd = toYMD(month);
-  if (!ymd) return "-";
-  return `${ymd.slice(0, 8)}15`;
+function mapPayment(item: PaymentRaw): PaymentView {
+  const studentName =
+    item.student?.fullName ||
+    `${item.student?.firstName || ""} ${item.student?.lastName || ""}`.trim() ||
+    "Noma'lum";
+  const amount = normalizeMoney(item.amount);
+  const paidAmount = normalizeMoney(item.paidAmount);
+
+  return {
+    id: item.id,
+    studentId: item.student?.id || "",
+    studentName,
+    groupId: item.group?.id || "",
+    groupName: item.group?.name || "-",
+    billingMonth: toYMD(item.billingMonth) || "",
+    dueDate: toYMD(item.dueDate) || "",
+    amount,
+    paidAmount,
+    debtAmount: Math.max(0, amount - paidAmount),
+    status: item.status || "unpaid",
+    paidAt: toYMD(item.paidAt) || "",
+    notes: item.notes || "",
+  };
 }
 
 export default function PaymentsPage() {
@@ -151,8 +152,8 @@ export default function PaymentsPage() {
   const canViewAmounts = role === "owner";
 
   const [groups, setGroups] = useState<GroupItem[]>([]);
-  const [payments, setPayments] = useState<PaymentItem[]>([]);
-  const [summary, setSummary] = useState<PaymentSummary | null>(null);
+  const [payments, setPayments] = useState<PaymentView[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -161,62 +162,27 @@ export default function PaymentsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [formState, setFormState] = useState<PaymentFormState>(initialForm);
+  const [formData, setFormData] = useState<PaymentForm>(initialForm);
 
   const selectedGroupId = searchParams.get("groupId") || "all";
   const selectedStatus = searchParams.get("status") || "all";
-  const selectedBillingMonth =
-    searchParams.get("billingMonth") || toYMD(new Date());
+  const selectedBillingMonth = searchParams.get("billingMonth") || toYMD(new Date());
 
-  const updateFilters = (next: {
-    groupId?: string;
-    status?: string;
-    billingMonth?: string;
-  }) => {
+  const updateFilters = (next: { groupId?: string; status?: string; billingMonth?: string }) => {
     const params = new URLSearchParams(searchParams.toString());
 
     const groupId = next.groupId ?? selectedGroupId;
     const status = next.status ?? selectedStatus;
     const billingMonth = next.billingMonth ?? selectedBillingMonth;
 
-    if (!groupId || groupId === "all") params.delete("groupId");
+    if (groupId === "all") params.delete("groupId");
     else params.set("groupId", groupId);
 
-    if (!status || status === "all") params.delete("status");
+    if (status === "all") params.delete("status");
     else params.set("status", status);
 
-    if (!billingMonth) params.delete("billingMonth");
-    else params.set("billingMonth", billingMonth);
-
+    params.set("billingMonth", toYMD(billingMonth));
     router.replace(`${pathname}?${params.toString()}`);
-  };
-
-  const loadGroups = async () => {
-    const list = await groupsAPI.list();
-    setGroups(Array.isArray(list) ? list : []);
-  };
-
-  const loadPayments = async () => {
-    const list = await paymentsAPI.list({
-      groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
-      status: selectedStatus === "all" ? undefined : selectedStatus,
-      billingMonth: selectedBillingMonth || undefined,
-    });
-    setPayments(Array.isArray(list) ? list : []);
-  };
-
-  const loadSummary = async () => {
-    if (!selectedBillingMonth) {
-      setSummary(null);
-      return;
-    }
-
-    const data = await paymentsAPI.summary({
-      groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
-      billingMonth: selectedBillingMonth,
-    });
-
-    setSummary(data ?? null);
   };
 
   const loadAll = async () => {
@@ -226,7 +192,26 @@ export default function PaymentsPage() {
     setError(null);
 
     try {
-      await Promise.all([loadGroups(), loadPayments(), loadSummary()]);
+      const [groupsData, paymentsData, summaryData] = await Promise.all([
+        groupsAPI.list(),
+        paymentsAPI.list({
+          groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
+          billingMonth: selectedBillingMonth,
+          status: selectedStatus === "all" ? undefined : selectedStatus,
+        }),
+        paymentsAPI.summary({
+          groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
+          billingMonth: selectedBillingMonth,
+        }),
+      ]);
+
+      setGroups(Array.isArray(groupsData) ? (groupsData as GroupItem[]) : []);
+      setPayments(
+        Array.isArray(paymentsData)
+          ? (paymentsData as PaymentRaw[]).map(mapPayment)
+          : [],
+      );
+      setSummary((summaryData || null) as Summary | null);
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -241,69 +226,38 @@ export default function PaymentsPage() {
     }
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    canAccessPayments,
-    selectedGroupId,
-    selectedStatus,
-    selectedBillingMonth,
-  ]);
+  }, [canAccessPayments, selectedGroupId, selectedStatus, selectedBillingMonth]);
 
-  const paymentStats = useMemo(() => {
-    const totalAmount = payments.reduce(
-      (acc, item) => acc + normalizeMoney(item.amount),
-      0,
-    );
-    const totalPaid = payments.reduce(
-      (acc, item) => acc + normalizeMoney(item.paidAmount),
-      0,
-    );
-    const totalDebt = payments.reduce(
-      (acc, item) => acc + normalizeMoney(item.debtAmount),
-      0,
-    );
-
-    const paidCount = payments.filter(
-      (p) => safeStatus(p.status) === "paid",
-    ).length;
-    const debtorCount = payments.filter((p) => {
-      const status = safeStatus(p.status);
-      return (
-        status === "overdue" || status === "partial" || status === "unpaid"
-      );
-    }).length;
+  const stats = useMemo(() => {
+    const totalAmount = payments.reduce((acc, item) => acc + item.amount, 0);
+    const totalPaid = payments.reduce((acc, item) => acc + item.paidAmount, 0);
+    const totalDebt = payments.reduce((acc, item) => acc + item.debtAmount, 0);
 
     return {
       totalAmount,
       totalPaid,
       totalDebt,
-      paidCount,
-      debtorCount,
+      paidCount: payments.filter((p) => p.status === "paid").length,
+      debtors: payments.filter((p) => p.status !== "paid").length,
     };
   }, [payments]);
 
   const openCreate = () => {
-    setFormState({
-      ...initialForm,
-      billingMonth: selectedBillingMonth || toYMD(new Date()),
-    });
+    setFormData({ ...initialForm, billingMonth: selectedBillingMonth });
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
   };
 
-  const openEdit = (payment: PaymentItem) => {
-    setFormState({
-      id: payment.id,
-      studentId: payment.studentId || "",
-      groupId: payment.groupId || "",
-      billingMonth:
-        toYMD(payment.billingMonth) ||
-        selectedBillingMonth ||
-        toYMD(new Date()),
-      amount: String(payment.amount ?? ""),
-      paidAmount: String(payment.paidAmount ?? ""),
-      paymentDate:
-        toYMD(payment.paymentDate || payment.paidDate) || toYMD(new Date()),
+  const openEdit = (item: PaymentView) => {
+    setFormData({
+      id: item.id,
+      studentId: item.studentId,
+      groupId: item.groupId,
+      billingMonth: item.billingMonth,
+      amount: String(item.amount),
+      paidAmount: String(item.paidAmount),
+      notes: item.notes,
     });
     setFieldErrors({});
     setFormError(null);
@@ -314,13 +268,11 @@ export default function PaymentsPage() {
     setFormError(null);
     setFieldErrors({});
 
-    const amount = normalizeMoney(formState.amount);
-    const paidAmount = normalizeMoney(formState.paidAmount);
+    const amount = normalizeMoney(formData.amount);
+    const paidAmount = normalizeMoney(formData.paidAmount);
 
     if (paidAmount > amount) {
-      setFieldErrors({
-        paidAmount: "Paid amount amountdan katta bo'lishi mumkin emas",
-      });
+      setFieldErrors({ paidAmount: "paidAmount amountdan katta bo'lishi mumkin emas" });
       return;
     }
 
@@ -328,16 +280,16 @@ export default function PaymentsPage() {
 
     try {
       const payload = {
-        studentId: formState.studentId || undefined,
-        groupId: formState.groupId || undefined,
-        billingMonth: toYMD(formState.billingMonth),
+        studentId: formData.studentId,
+        groupId: formData.groupId,
+        billingMonth: toYMD(formData.billingMonth),
         amount,
         paidAmount,
-        paymentDate: toYMD(formState.paymentDate),
+        notes: formData.notes.trim() || null,
       };
 
-      if (formState.id) {
-        await paymentsAPI.update(formState.id, payload);
+      if (formData.id) {
+        await paymentsAPI.update(formData.id, payload);
       } else {
         await paymentsAPI.create(payload);
       }
@@ -345,13 +297,8 @@ export default function PaymentsPage() {
       setIsDialogOpen(false);
       await loadAll();
     } catch (err) {
-      if (
-        err instanceof ApiClientError &&
-        (err.status === 400 || err.status === 409)
-      ) {
-        if (err.fieldErrors && Object.keys(err.fieldErrors).length > 0) {
-          setFieldErrors(err.fieldErrors);
-        }
+      if (err instanceof ApiClientError && (err.status === 400 || err.status === 409) && err.fieldErrors) {
+        setFieldErrors(err.fieldErrors);
       }
       setFormError(getApiErrorMessage(err));
     } finally {
@@ -359,85 +306,53 @@ export default function PaymentsPage() {
     }
   };
 
-  if (!canAccessPayments) {
-    return null;
-  }
-
-  const summaryDueDate = summary?.dueDate
-    ? toYMD(summary.dueDate)
-    : dueDateFromMonth(summary?.billingMonth || selectedBillingMonth);
+  if (!canAccessPayments) return null;
 
   const columns = [
     {
       key: "studentName",
       header: "O'quvchi",
-      render: (item: PaymentItem) => (
-        <span className="font-medium text-foreground">
-          {item.studentName || item.student || "-"}
-        </span>
-      ),
+      render: (item: PaymentView) => <span className="font-medium">{item.studentName}</span>,
     },
     {
       key: "groupName",
       header: "Guruh",
-      render: (item: PaymentItem) => (
-        <span className="text-muted-foreground">
-          {item.groupName || item.group || "-"}
-        </span>
-      ),
+      render: (item: PaymentView) => <span className="text-muted-foreground">{item.groupName}</span>,
     },
     {
       key: "billingMonth",
       header: "Billing month",
-      render: (item: PaymentItem) => (
-        <span className="text-muted-foreground">
-          {toYMD(item.billingMonth) || "-"}
-        </span>
-      ),
+      render: (item: PaymentView) => <span className="text-muted-foreground">{item.billingMonth || "-"}</span>,
     },
     ...(canViewAmounts
       ? [
           {
             key: "amount",
             header: "Amount",
-            render: (item: PaymentItem) => (
-              <span className="font-medium text-foreground">
-                {formatCurrency(item.amount)}
-              </span>
-            ),
+            render: (item: PaymentView) => <span>{formatCurrency(item.amount)}</span>,
           },
           {
             key: "paidAmount",
             header: "Paid",
-            render: (item: PaymentItem) => (
-              <span className="font-medium text-success">
-                {formatCurrency(item.paidAmount)}
-              </span>
-            ),
+            render: (item: PaymentView) => <span className="text-success">{formatCurrency(item.paidAmount)}</span>,
           },
           {
             key: "debtAmount",
             header: "Debt",
-            render: (item: PaymentItem) => (
-              <span className="font-medium text-destructive">
-                {formatCurrency(item.debtAmount)}
-              </span>
-            ),
+            render: (item: PaymentView) => <span className="text-destructive">{formatCurrency(item.debtAmount)}</span>,
           },
         ]
       : []),
     {
       key: "status",
-      header: "Status",
-      render: (item: PaymentItem) => (
-        <StatusBadge status={safeStatus(item.status)} />
-      ),
+      header: "Holat",
+      render: (item: PaymentView) => <StatusBadge status={item.status} />,
     },
     {
       key: "actions",
       header: "Amallar",
       className: "text-right",
-      render: (item: PaymentItem) => (
+      render: (item: PaymentView) => (
         <div className="flex justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -446,9 +361,7 @@ export default function PaymentsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => openEdit(item)}>
-                Tahrirlash
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openEdit(item)}>Tahrirlash</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -463,354 +376,162 @@ export default function PaymentsPage() {
       <div className="space-y-6 p-6">
         {error && (
           <Card className="border-destructive/40 bg-destructive/5">
-            <CardContent className="flex items-center gap-2 p-4 text-destructive">
-              <CircleAlert className="size-4" />
-              <span>{error}</span>
-            </CardContent>
+            <CardContent className="p-4 text-sm text-destructive">{error}</CardContent>
           </Card>
         )}
 
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
-        )}
+        {isLoading && <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>}
 
-        <Card className="rounded-2xl">
+        <Card>
           <CardHeader>
             <CardTitle>Filterlar</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label>Guruh</Label>
-              <Select
-                value={selectedGroupId}
-                onValueChange={(value) => updateFilters({ groupId: value })}
-              >
+              <Select value={selectedGroupId} onValueChange={(value) => updateFilters({ groupId: value })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Guruhni tanlang" />
+                  <SelectValue placeholder="Guruh tanlang" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Barchasi</SelectItem>
                   {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name || "Noma'lum guruh"}
-                    </SelectItem>
+                    <SelectItem key={g.id} value={g.id}>{g.name || g.id}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label>Billing month (YYYY-MM-DD)</Label>
-              <Input
-                type="date"
-                value={selectedBillingMonth}
-                onChange={(e) =>
-                  updateFilters({ billingMonth: toYMD(e.target.value) })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label>Status</Label>
-              <Select
-                value={selectedStatus}
-                onValueChange={(value) => updateFilters({ status: value })}
-              >
+              <Select value={selectedStatus} onValueChange={(value) => updateFilters({ status: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Barchasi</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="unpaid">Unpaid</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
+                  <SelectItem value="paid">paid</SelectItem>
+                  <SelectItem value="partial">partial</SelectItem>
+                  <SelectItem value="unpaid">unpaid</SelectItem>
+                  <SelectItem value="overdue">overdue</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>billingMonth (YYYY-MM-DD)</Label>
+              <Input type="date" value={selectedBillingMonth} onChange={(e) => updateFilters({ billingMonth: e.target.value })} />
             </div>
           </CardContent>
         </Card>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Jami tushum</p>
-              <p className="text-xl font-semibold text-success">
-                {formatCurrency(paymentStats.totalPaid)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Jami qarz</p>
-              <p className="text-xl font-semibold text-destructive">
-                {formatCurrency(paymentStats.totalDebt)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Kim to'lagan</p>
-              <p className="text-xl font-semibold text-foreground">
-                {paymentStats.paidCount}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Qarzdorlar</p>
-              <p className="text-xl font-semibold text-foreground">
-                {paymentStats.debtorCount}
-              </p>
-            </CardContent>
-          </Card>
+          <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Jami tushum</p><p className="text-lg font-semibold text-success">{formatCurrency(stats.totalPaid)}</p></CardContent></Card>
+          <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Jami qarz</p><p className="text-lg font-semibold text-destructive">{formatCurrency(stats.totalDebt)}</p></CardContent></Card>
+          <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Kim to'lagan</p><p className="text-lg font-semibold">{stats.paidCount}</p></CardContent></Card>
+          <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Kim qarzdor</p><p className="text-lg font-semibold">{stats.debtors}</p></CardContent></Card>
         </div>
 
-        <Card className="rounded-2xl">
+        <Card>
           <CardHeader>
-            <CardTitle>Payments summary (oy/guruh)</CardTitle>
+            <CardTitle>Summary</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Guruh: {summary?.group?.name || "-"} | Billing month:{" "}
-              {toYMD(summary?.billingMonth) || selectedBillingMonth || "-"} |
-              Due date: {summaryDueDate}
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Jami amount</p>
-                <p className="font-semibold">
-                  {formatCurrency(summary?.totals?.totalAmount)}
-                </p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">To'langan</p>
-                <p className="font-semibold text-success">
-                  {formatCurrency(summary?.totals?.paidAmount)}
-                </p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Qarz</p>
-                <p className="font-semibold text-destructive">
-                  {formatCurrency(summary?.totals?.debtAmount)}
-                </p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Entries</p>
-                <p className="font-semibold">{summary?.entries?.length || 0}</p>
-              </div>
-            </div>
+          <CardContent className="space-y-4 text-sm">
+            <p>Guruh: {summary?.group?.name || "-"}</p>
+            <p>Billing month: {toYMD(summary?.billingMonth) || selectedBillingMonth}</p>
+            <p>Due date: {summaryDueDate(summary, selectedBillingMonth)}</p>
+            <p>Jami amount: {formatCurrency(summary?.totals?.totalAmount)}</p>
+            <p>Jami paid: {formatCurrency(summary?.totals?.paidAmount)}</p>
+            <p>Jami debt: {formatCurrency(summary?.totals?.debtAmount)}</p>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <p className="mb-2 text-sm font-medium">Kim to'lagan</p>
-                {summary?.paidStudents?.length ? (
-                  <ul className="space-y-1 text-sm">
+                <p className="mb-2 font-medium">Kim to'lagan</p>
+                {summary?.paidStudents && summary.paidStudents.length > 0 ? (
+                  <ul className="space-y-1">
                     {summary.paidStudents.map((item) => (
-                      <li
-                        key={`${item.studentId}-${item.studentName}`}
-                        className="flex items-center justify-between rounded border p-2"
-                      >
+                      <li key={`${item.studentId}-${item.studentName}`} className="flex justify-between rounded border p-2">
                         <span>{item.studentName || "Noma'lum"}</span>
                         <span>{formatCurrency(item.amount)}</span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Ma'lumot yo'q</p>
+                  <p className="text-muted-foreground">Ma'lumot yo'q</p>
                 )}
               </div>
+
               <div>
-                <p className="mb-2 text-sm font-medium">Kim qarzdor</p>
-                {summary?.debtors?.length ? (
-                  <ul className="space-y-1 text-sm">
+                <p className="mb-2 font-medium">Kim qarzdor</p>
+                {summary?.debtors && summary.debtors.length > 0 ? (
+                  <ul className="space-y-1">
                     {summary.debtors.map((item) => (
-                      <li
-                        key={`${item.studentId}-${item.studentName}`}
-                        className="flex items-center justify-between rounded border p-2"
-                      >
+                      <li key={`${item.studentId}-${item.studentName}`} className="flex justify-between rounded border p-2">
                         <span>{item.studentName || "Noma'lum"}</span>
-                        <span className="text-destructive">
-                          {formatCurrency(item.debtAmount)}
-                        </span>
+                        <span className="text-destructive">{formatCurrency(item.debtAmount)}</span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Ma'lumot yo'q</p>
+                  <p className="text-muted-foreground">Ma'lumot yo'q</p>
                 )}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <DataTable
-          data={payments}
-          columns={columns}
-          searchPlaceholder="Payment qidirish..."
-          showFilters={false}
-          addButtonLabel="To'lov qo'shish"
-          onAddClick={openCreate}
-        />
-
-        {!isLoading && payments.length === 0 && (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
-              <CreditCard className="size-8" />
-              <p>To'lovlar topilmadi</p>
-            </CardContent>
-          </Card>
-        )}
+        <DataTable data={payments} columns={columns} searchPlaceholder="Payment qidirish..." addButtonLabel="To'lov qo'shish" onAddClick={openCreate} showFilters={false} />
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>
-                {formState.id ? "To'lovni tahrirlash" : "To'lov qo'shish"}
-              </DialogTitle>
-              <DialogDescription>
-                `paidAmount` qiymati `amount`dan katta bo'lmasligi shart.
-              </DialogDescription>
+              <DialogTitle>{formData.id ? "To'lovni tahrirlash" : "To'lov qo'shish"}</DialogTitle>
+              <DialogDescription>paidAmount amountdan katta bo'lmasligi kerak.</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-2">
-              {formError && (
-                <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
-                  {formError}
-                </p>
-              )}
+              {formError && <p className="rounded border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{formError}</p>}
 
               <div className="space-y-1">
                 <Label htmlFor="studentId">Student ID</Label>
-                <Input
-                  id="studentId"
-                  value={formState.studentId}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      studentId: e.target.value,
-                    }))
-                  }
-                />
-                {fieldErrors.studentId && (
-                  <p className="text-xs text-destructive">
-                    {fieldErrors.studentId}
-                  </p>
-                )}
+                <Input id="studentId" value={formData.studentId} onChange={(e) => setFormData((prev) => ({ ...prev, studentId: e.target.value }))} />
               </div>
 
               <div className="space-y-1">
                 <Label htmlFor="groupId">Group ID</Label>
-                <Input
-                  id="groupId"
-                  value={formState.groupId}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      groupId: e.target.value,
-                    }))
-                  }
-                />
-                {fieldErrors.groupId && (
-                  <p className="text-xs text-destructive">
-                    {fieldErrors.groupId}
-                  </p>
-                )}
+                <Input id="groupId" value={formData.groupId} onChange={(e) => setFormData((prev) => ({ ...prev, groupId: e.target.value }))} />
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="billingMonth">Billing month (YYYY-MM-DD)</Label>
-                <Input
-                  id="billingMonth"
-                  type="date"
-                  value={formState.billingMonth}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      billingMonth: toYMD(e.target.value),
-                    }))
-                  }
-                />
-                {fieldErrors.billingMonth && (
-                  <p className="text-xs text-destructive">
-                    {fieldErrors.billingMonth}
-                  </p>
-                )}
+                <Label htmlFor="billingMonth">Billing month</Label>
+                <Input id="billingMonth" type="date" value={formData.billingMonth} onChange={(e) => setFormData((prev) => ({ ...prev, billingMonth: toYMD(e.target.value) }))} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="amount">Amount</Label>
-                  <Input
-                    id="amount"
-                    value={formState.amount}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        amount: e.target.value,
-                      }))
-                    }
-                  />
-                  {fieldErrors.amount && (
-                    <p className="text-xs text-destructive">
-                      {fieldErrors.amount}
-                    </p>
-                  )}
+                  <Input id="amount" value={formData.amount} onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))} />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="paidAmount">Paid amount</Label>
-                  <Input
-                    id="paidAmount"
-                    value={formState.paidAmount}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        paidAmount: e.target.value,
-                      }))
-                    }
-                  />
-                  {fieldErrors.paidAmount && (
-                    <p className="text-xs text-destructive">
-                      {fieldErrors.paidAmount}
-                    </p>
-                  )}
+                  <Input id="paidAmount" value={formData.paidAmount} onChange={(e) => setFormData((prev) => ({ ...prev, paidAmount: e.target.value }))} />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="paymentDate">Payment date</Label>
-                <Input
-                  id="paymentDate"
-                  type="date"
-                  value={formState.paymentDate}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      paymentDate: toYMD(e.target.value),
-                    }))
-                  }
-                />
-                {fieldErrors.paymentDate && (
-                  <p className="text-xs text-destructive">
-                    {fieldErrors.paymentDate}
-                  </p>
-                )}
+                <Label htmlFor="notes">Notes</Label>
+                <Input id="notes" value={formData.notes} onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))} />
               </div>
+
+              {Object.keys(fieldErrors).map((key) => (
+                <p key={key} className="text-xs text-destructive">{fieldErrors[key]}</p>
+              ))}
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Bekor qilish
-              </Button>
-              <Button
-                onClick={submitForm}
-                disabled={isSaving}
-                className="gap-2"
-              >
-                {isSaving ? (
-                  <CircleAlert className="size-4 animate-spin" />
-                ) : (
-                  <CheckCircle className="size-4" />
-                )}
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Bekor qilish</Button>
+              <Button onClick={submitForm} disabled={isSaving}>
+                {isSaving ? <CircleAlert className="mr-2 size-4 animate-spin" /> : <CheckCircle className="mr-2 size-4" />}
                 Saqlash
               </Button>
             </DialogFooter>
