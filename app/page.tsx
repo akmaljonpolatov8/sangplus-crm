@@ -11,12 +11,15 @@ import {
   Crown,
   Settings,
   BookOpen,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib-frontend/utils";
 import { useRole, type UserRole } from "@/lib-frontend/role-context";
+import { authAPI } from "@/lib-frontend/api-client";
 
 type LoginRole = "owner" | "manager" | "teacher";
 
@@ -45,6 +48,7 @@ export default function LoginPage() {
   const [selectedRole, setSelectedRole] = useState<LoginRole>("owner");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -52,19 +56,59 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    // Validation
+    if (!formData.username.trim()) {
+      setError("Foydalanuvchi nomini kiriting");
+      return;
+    }
+
+    if (!formData.password) {
+      setError("Parolni kiriting");
+      return;
+    }
+
+    if (formData.password.length < 3) {
+      setError("Parol kamida 3 ta belgi bo'lishi kerak");
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simulate login - set the role and username
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      // Call backend API
+      const response = await authAPI.login(
+        formData.username,
+        formData.password,
+        selectedRole,
+      );
 
-    setRole(selectedRole as UserRole);
-    setUserName(formData.username || "Foydalanuvchi");
+      // Store token if backend returns it
+      if (response.token) {
+        sessionStorage.setItem("sangplus_token", response.token);
+      }
 
-    // Redirect based on role
-    if (selectedRole === "teacher") {
-      router.push("/dashboard/attendance");
-    } else {
-      router.push("/dashboard");
+      // Store role and username
+      setRole(selectedRole as UserRole);
+      setUserName(response.user?.username || formData.username);
+
+      // Clear form
+      setFormData({ username: "", password: "" });
+
+      // Redirect based on role
+      if (selectedRole === "teacher") {
+        router.push("/dashboard/attendance");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Login qilishda xato yuz berdi. Qayta urinib ko'ring.";
+      setError(errorMessage);
+      setIsLoading(false);
     }
   };
 
@@ -149,6 +193,14 @@ export default function LoginPage() {
         <div className="uiverse-input-container">
           <div className="uiverse-input-content">
             <div style={{ padding: "1.2em", width: "100%", zIndex: 80 }}>
+              {/* Error Alert */}
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-3">
                   <input

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -85,6 +85,7 @@ const teacherNavigation: NavItem[] = [
 
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { role, userName, isLoaded } = useRole();
 
   // Get navigation items based on role (only after loaded)
@@ -93,6 +94,16 @@ export function DashboardSidebar() {
     : role === "teacher"
       ? teacherNavigation
       : allNavigation.filter((item) => hasAccess(role, item.feature));
+
+  const handleLogout = () => {
+    // Clear all auth data
+    sessionStorage.removeItem("sangplus_token");
+    sessionStorage.removeItem("sangplus_role");
+    sessionStorage.removeItem("sangplus_username");
+
+    // Redirect to login
+    router.push("/");
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar">
@@ -170,17 +181,13 @@ export function DashboardSidebar() {
 
         {/* Logout */}
         <div className="border-t border-sidebar-border p-4">
-          <Link
-            href="/"
-            onClick={() => {
-              sessionStorage.removeItem("sangplus_role");
-              sessionStorage.removeItem("sangplus_username");
-            }}
-            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-muted-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
             <LogOut className="size-5" />
             Chiqish
-          </Link>
+          </button>
         </div>
       </div>
     </aside>

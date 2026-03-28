@@ -3,7 +3,7 @@
  * Handles all HTTP requests with token management and error handling
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 interface FetchOptions extends RequestInit {
   data?: Record<string, any>;
@@ -13,8 +13,8 @@ interface FetchOptions extends RequestInit {
  * Get the auth token from sessionStorage
  */
 function getAuthToken(): string | null {
-  if (typeof window !== 'undefined') {
-    return sessionStorage.getItem('sangplus_token');
+  if (typeof window !== "undefined") {
+    return sessionStorage.getItem("sangplus_token");
   }
   return null;
 }
@@ -24,18 +24,20 @@ function getAuthToken(): string | null {
  */
 export async function apiClient(
   endpoint: string,
-  options: FetchOptions = {}
+  options: FetchOptions = {},
 ): Promise<any> {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getAuthToken();
 
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...options.headers,
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(typeof options.headers === "object" && options.headers
+      ? (options.headers as Record<string, string>)
+      : {}),
   };
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   const fetchOptions: RequestInit = {
@@ -52,19 +54,20 @@ export async function apiClient(
 
     // Handle 401 - Token expired or invalid
     if (response.status === 401) {
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('sangplus_token');
-        sessionStorage.removeItem('sangplus_role');
-        sessionStorage.removeItem('sangplus_username');
-        window.location.href = '/';
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("sangplus_token");
+        sessionStorage.removeItem("sangplus_role");
+        sessionStorage.removeItem("sangplus_username");
+        window.location.href = "/";
       }
-      throw new Error('Unauthorized - Please login again');
+      throw new Error("Unauthorized - Please login again");
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(
-        errorData.message || `API Error: ${response.status} ${response.statusText}`
+        errorData.message ||
+          `API Error: ${response.status} ${response.statusText}`,
       );
     }
 
@@ -81,7 +84,7 @@ export async function apiClient(
 export function apiGet(endpoint: string, options?: FetchOptions) {
   return apiClient(endpoint, {
     ...options,
-    method: 'GET',
+    method: "GET",
   });
 }
 
@@ -91,11 +94,11 @@ export function apiGet(endpoint: string, options?: FetchOptions) {
 export function apiPost(
   endpoint: string,
   data: Record<string, any>,
-  options?: FetchOptions
+  options?: FetchOptions,
 ) {
   return apiClient(endpoint, {
     ...options,
-    method: 'POST',
+    method: "POST",
     data,
   });
 }
@@ -106,11 +109,11 @@ export function apiPost(
 export function apiPut(
   endpoint: string,
   data: Record<string, any>,
-  options?: FetchOptions
+  options?: FetchOptions,
 ) {
   return apiClient(endpoint, {
     ...options,
-    method: 'PUT',
+    method: "PUT",
     data,
   });
 }
@@ -121,7 +124,7 @@ export function apiPut(
 export function apiDelete(endpoint: string, options?: FetchOptions) {
   return apiClient(endpoint, {
     ...options,
-    method: 'DELETE',
+    method: "DELETE",
   });
 }
 
@@ -130,33 +133,33 @@ export function apiDelete(endpoint: string, options?: FetchOptions) {
  */
 export const authAPI = {
   login: (username: string, password: string, role: string) =>
-    apiPost('/api/auth/login', { username, password, role }),
+    apiPost("/api/auth/login", { username, password, role }),
 
-  logout: () => apiPost('/api/auth/logout', {}),
+  logout: () => apiPost("/api/auth/logout", {}),
 
-  getCurrentUser: () => apiGet('/api/auth/me'),
+  getCurrentUser: () => apiGet("/api/auth/me"),
 
-  refreshToken: () => apiPost('/api/auth/refresh-token', {}),
+  refreshToken: () => apiPost("/api/auth/refresh-token", {}),
 };
 
 /**
  * Dashboard API methods
  */
 export const dashboardAPI = {
-  getStats: () => apiGet('/api/dashboard/stats'),
+  getStats: () => apiGet("/api/dashboard/stats"),
 
-  getActivity: () => apiGet('/api/dashboard/activity'),
+  getActivity: () => apiGet("/api/dashboard/activity"),
 };
 
 /**
  * Students API methods
  */
 export const studentsAPI = {
-  list: () => apiGet('/api/students'),
+  list: () => apiGet("/api/students"),
 
   get: (id: string) => apiGet(`/api/students/${id}`),
 
-  create: (data: Record<string, any>) => apiPost('/api/students', data),
+  create: (data: Record<string, any>) => apiPost("/api/students", data),
 
   update: (id: string, data: Record<string, any>) =>
     apiPut(`/api/students/${id}`, data),
@@ -168,11 +171,11 @@ export const studentsAPI = {
  * Teachers API methods
  */
 export const teachersAPI = {
-  list: () => apiGet('/api/teachers'),
+  list: () => apiGet("/api/teachers"),
 
   get: (id: string) => apiGet(`/api/teachers/${id}`),
 
-  create: (data: Record<string, any>) => apiPost('/api/teachers', data),
+  create: (data: Record<string, any>) => apiPost("/api/teachers", data),
 
   update: (id: string, data: Record<string, any>) =>
     apiPut(`/api/teachers/${id}`, data),
@@ -184,11 +187,11 @@ export const teachersAPI = {
  * Groups API methods
  */
 export const groupsAPI = {
-  list: () => apiGet('/api/groups'),
+  list: () => apiGet("/api/groups"),
 
   get: (id: string) => apiGet(`/api/groups/${id}`),
 
-  create: (data: Record<string, any>) => apiPost('/api/groups', data),
+  create: (data: Record<string, any>) => apiPost("/api/groups", data),
 
   update: (id: string, data: Record<string, any>) =>
     apiPut(`/api/groups/${id}`, data),
@@ -200,11 +203,11 @@ export const groupsAPI = {
  * Payments API methods
  */
 export const paymentsAPI = {
-  list: () => apiGet('/api/payments'),
+  list: () => apiGet("/api/payments"),
 
   get: (id: string) => apiGet(`/api/payments/${id}`),
 
-  create: (data: Record<string, any>) => apiPost('/api/payments', data),
+  create: (data: Record<string, any>) => apiPost("/api/payments", data),
 
   update: (id: string, data: Record<string, any>) =>
     apiPut(`/api/payments/${id}`, data),
@@ -216,11 +219,11 @@ export const paymentsAPI = {
  * Attendance API methods
  */
 export const attendanceAPI = {
-  list: () => apiGet('/api/attendance'),
+  list: () => apiGet("/api/attendance"),
 
   get: (id: string) => apiGet(`/api/attendance/${id}`),
 
-  create: (data: Record<string, any>) => apiPost('/api/attendance', data),
+  create: (data: Record<string, any>) => apiPost("/api/attendance", data),
 
   update: (id: string, data: Record<string, any>) =>
     apiPut(`/api/attendance/${id}`, data),

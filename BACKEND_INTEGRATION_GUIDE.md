@@ -1,6 +1,7 @@
 # 🔗 Backend Integration Guide - SangPlus CRM Frontend
 
 ## Frontend Info
+
 - **Repo**: https://github.com/akmaljonpolatov8/sangplus-crm
 - **Branch**: `frontend-shukrullo`
 - **Tech Stack**: Next.js 16.2 + TypeScript + React + Radix UI
@@ -13,6 +14,7 @@
 ## 📌 Quick Start for Backend Developer
 
 ### 1. Frontend Structure You Need to Know
+
 ```
 Login → Role Selection → Dashboard (based on role)
 
@@ -25,9 +27,11 @@ Roles:
 ### 2. Required Backend Services
 
 #### A. Authentication Service
+
 **Endpoint**: `POST /api/auth/login`
 
 **Request**:
+
 ```json
 {
   "username": "string",
@@ -37,6 +41,7 @@ Roles:
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -51,6 +56,7 @@ Roles:
 ```
 
 **Error** (401):
+
 ```json
 {
   "success": false,
@@ -61,6 +67,7 @@ Roles:
 ---
 
 #### B. Dashboard Data Service
+
 **Endpoints needed for dashboard cards**:
 
 ```
@@ -73,6 +80,7 @@ GET /api/payments
 ```
 
 **Example Response Format for Stats**:
+
 ```json
 {
   "totalStudents": 150,
@@ -88,61 +96,64 @@ GET /api/payments
 ## 🔧 Frontend Files Needing Backend Connection
 
 ### Priority 1 - CRITICAL (Login)
+
 **File**: `app/page.tsx`
 
 **Current Code** (lines 55-75):
+
 ```typescript
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setIsLoading(true);
-  
+
   // Currently: Mock login
   await new Promise((resolve) => setTimeout(resolve, 1000));
-  
+
   setRole(selectedRole as UserRole);
   setUserName(formData.username || "Foydalanuvchi");
-  
+
   router.push("/dashboard");
 };
 ```
 
 **What to Replace With**:
+
 ```typescript
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setIsLoading(true);
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         username: formData.username,
         password: formData.password,
         role: selectedRole,
       }),
     });
-    
-    if (!response.ok) throw new Error('Login failed');
-    
+
+    if (!response.ok) throw new Error("Login failed");
+
     const data = await response.json();
-    
+
     // Store token
-    sessionStorage.setItem('sangplus_token', data.token);
-    sessionStorage.setItem('sangplus_role', selectedRole);
-    sessionStorage.setItem('sangplus_username', data.user.username);
-    
+    sessionStorage.setItem("sangplus_token", data.token);
+    sessionStorage.setItem("sangplus_role", selectedRole);
+    sessionStorage.setItem("sangplus_username", data.user.username);
+
     setRole(selectedRole as UserRole);
     setUserName(data.user.username);
-    
-    if (selectedRole === 'teacher') {
-      router.push('/dashboard/attendance');
+
+    if (selectedRole === "teacher") {
+      router.push("/dashboard/attendance");
     } else {
-      router.push('/dashboard');
+      router.push("/dashboard");
     }
   } catch (error) {
     // Show error toast
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     setIsLoading(false);
   }
 };
@@ -151,36 +162,39 @@ const handleSubmit = async (e: React.FormEvent) => {
 ---
 
 ### Priority 2 - HIGH (Dashboard Stats)
+
 **File**: `app/dashboard/page.tsx` (lines ~30-60)
 
 **What Needs Changing**:
+
 - Replace `recentActivity` mock data with API call to `/api/activity`
 - Replace `StatCard` hardcoded values with real data from `/api/dashboard/stats`
 
 **Example Implementation**:
-```typescript
-'use client';
 
-import { useEffect, useState } from 'react';
+```typescript
+"use client";
+
+import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     const fetchStats = async () => {
-      const token = sessionStorage.getItem('sangplus_token');
+      const token = sessionStorage.getItem("sangplus_token");
       const response = await fetch(`${API_BASE_URL}/api/dashboard/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       setStats(data);
       setLoading(false);
     };
-    
+
     fetchStats();
   }, []);
-  
+
   // Rest of component
 }
 ```
@@ -188,7 +202,9 @@ export default function DashboardPage() {
 ---
 
 ### Priority 3 - MEDIUM (Data Tables)
-**Files**: 
+
+**Files**:
+
 - `app/dashboard/students/page.tsx`
 - `app/dashboard/teachers/page.tsx`
 - `app/dashboard/groups/page.tsx`
@@ -198,6 +214,7 @@ export default function DashboardPage() {
 **Component**: `components/dashboard/data-table.tsx`
 
 **What Needs**:
+
 - Fetch data from respective endpoints
 - Column headers and data mapping already configured
 - Just needs API integration (see example above)
@@ -207,12 +224,14 @@ export default function DashboardPage() {
 ## 🔐 Authorization Flow
 
 ### Token Management
+
 1. **Store after login**: `sessionStorage.setItem('sangplus_token', token)`
 2. **Include in requests**: `headers: { 'Authorization': 'Bearer {token}' }`
 3. **On logout**: `sessionStorage.removeItem('sangplus_token')`
 4. **On token expiry**: Redirect to login
 
 ### Role-Based Access Control
+
 Already implemented in `lib-frontend/role-context.tsx` - use `hasAccess()` helper:
 
 ```typescript
@@ -272,13 +291,15 @@ if (!hasAccess(role, 'view-students')) {
 ## 🚀 Frontend Environment Setup
 
 Add to `.env.local`:
+
 ```
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
 Then in frontend code:
+
 ```typescript
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 ```
 
 ---
@@ -307,12 +328,12 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 ## 📞 Frontend Locations Summary
 
-| Feature | File | Line | Status |
-|---------|------|------|--------|
-| Login Page | `app/page.tsx` | 55-75 | 🔴 Ready for integration |
-| Dashboard | `app/dashboard/page.tsx` | 1-50 | 🟡 Partial integration |
-| Students | `app/dashboard/students/page.tsx` | TBD | 🔴 Mock data |
-| Teachers | `app/dashboard/teachers/page.tsx` | TBD | 🔴 Mock data |
-| Groups | `app/dashboard/groups/page.tsx` | TBD | 🔴 Mock data |
-| Payments | `app/dashboard/payments/page.tsx` | TBD | 🔴 Mock data |
-| Attendance | `app/dashboard/attendance/page.tsx` | TBD | 🟡 Partial |
+| Feature    | File                                | Line  | Status                   |
+| ---------- | ----------------------------------- | ----- | ------------------------ |
+| Login Page | `app/page.tsx`                      | 55-75 | 🔴 Ready for integration |
+| Dashboard  | `app/dashboard/page.tsx`            | 1-50  | 🟡 Partial integration   |
+| Students   | `app/dashboard/students/page.tsx`   | TBD   | 🔴 Mock data             |
+| Teachers   | `app/dashboard/teachers/page.tsx`   | TBD   | 🔴 Mock data             |
+| Groups     | `app/dashboard/groups/page.tsx`     | TBD   | 🔴 Mock data             |
+| Payments   | `app/dashboard/payments/page.tsx`   | TBD   | 🔴 Mock data             |
+| Attendance | `app/dashboard/attendance/page.tsx` | TBD   | 🟡 Partial               |
