@@ -496,6 +496,57 @@ Behavior:
 
 ## Lessons
 
+### `GET /api/lessons`
+
+Required role:
+
+- `OWNER`
+- `MANAGER`
+- `TEACHER`
+
+Query params:
+
+- `groupId`
+- `teacherId`
+- `lessonDate`
+- `activeOnly`: `true | false`
+
+Success response:
+
+```json
+{
+  "success": true,
+  "message": "Lessons fetched successfully",
+  "data": [
+    {
+      "id": "cm9lesson1",
+      "lessonDate": "2026-03-24T00:00:00.000Z",
+      "startedAt": "2026-03-24T08:12:00.000Z",
+      "endedAt": "2026-03-24T09:47:00.000Z",
+      "durationMinutes": 95,
+      "notes": "Genetika bo'yicha amaliy dars",
+      "group": {
+        "id": "cm9group1",
+        "name": "Bio-1",
+        "subject": "Biologiya",
+        "scheduleDays": ["Dushanba", "Chorshanba", "Juma"],
+        "startTime": "08:00",
+        "endTime": "10:00"
+      },
+      "startedBy": {
+        "id": "cm9teacher1",
+        "fullName": "Diyora Xasanova",
+        "username": "teacher_diyora"
+      },
+      "_count": {
+        "attendance": 12
+      }
+    }
+  ],
+  "error": null
+}
+```
+
 ### `POST /api/lessons/start`
 
 Required role:
@@ -518,11 +569,45 @@ Success response:
 ```json
 {
   "success": true,
-  "message": "Request completed successfully",
+  "message": "Lesson started successfully",
   "data": {
     "id": "cm9lesson1",
     "lessonDate": "2026-03-24T00:00:00.000Z",
     "startedAt": "2026-03-24T11:30:00.000Z",
+    "endedAt": null,
+    "notes": "Genetika bo'yicha amaliy dars",
+    "group": {
+      "id": "cm9group1",
+      "name": "Bio-1"
+    },
+    "startedBy": {
+      "id": "cm9teacher1",
+      "fullName": "Diyora Xasanova"
+    }
+  },
+  "error": null
+}
+```
+
+### `POST /api/lessons/[id]/stop`
+
+Required role:
+
+- `OWNER`
+- `TEACHER`
+
+Success response:
+
+```json
+{
+  "success": true,
+  "message": "Lesson stopped successfully",
+  "data": {
+    "id": "cm9lesson1",
+    "lessonDate": "2026-03-24T00:00:00.000Z",
+    "startedAt": "2026-03-24T11:30:00.000Z",
+    "endedAt": "2026-03-24T13:00:00.000Z",
+    "durationMinutes": 90,
     "notes": "Genetika bo'yicha amaliy dars",
     "group": {
       "id": "cm9group1",
@@ -552,6 +637,11 @@ Query params:
 - `lessonId`
 - `groupId`
 - `lessonDate`
+
+Attendance response includes lesson timing fields:
+
+- `lesson.startedAt`
+- `lesson.endedAt`
 
 ### `POST /api/attendance`
 
@@ -692,6 +782,101 @@ Important:
 - `MANAGER` response does not include `paidAmount`
 - `MANAGER` response does not include `paidAt`
 - `MANAGER` response does not include `notes`
+
+### `GET /api/payments/summary`
+
+Required role:
+
+- `OWNER`
+- `MANAGER`
+
+Query params:
+
+- `groupId`
+- `billingMonth`
+
+Purpose:
+
+- monthly payment snapshot for one group
+- shows total expected amount, collected amount, debt amount
+- shows which students paid and which students still owe
+- due date is always the 15th day of the selected month
+
+Example response:
+
+```json
+{
+  "success": true,
+  "message": "Payment summary fetched successfully",
+  "data": {
+    "group": {
+      "id": "cm9group1",
+      "name": "Bio-1",
+      "subject": "Biologiya",
+      "monthlyFee": "100000",
+      "isActive": true
+    },
+    "billingMonth": "2026-03-01T00:00:00.000Z",
+    "dueDate": "2026-03-15T00:00:00.000Z",
+    "totals": {
+      "totalStudents": 10,
+      "expectedAmount": 1000000,
+      "collectedAmount": 700000,
+      "debtAmount": 300000,
+      "paidStudents": 7,
+      "partialStudents": 0,
+      "unpaidStudents": 3,
+      "overdueStudents": 0
+    },
+    "paidStudents": [
+      {
+        "paymentId": "cm9payment1",
+        "student": {
+          "id": "cm9student1",
+          "firstName": "Malika",
+          "lastName": "Tursunova",
+          "phone": "998901112233",
+          "parentPhone": "998901110001",
+          "parentName": "Dilfuza opa",
+          "status": "ACTIVE"
+        },
+        "billingMonth": "2026-03-01T00:00:00.000Z",
+        "dueDate": "2026-03-15T00:00:00.000Z",
+        "amount": 100000,
+        "paidAmount": 100000,
+        "debtAmount": 0,
+        "status": "PAID",
+        "paidAt": "2026-03-10T09:00:00.000Z",
+        "notes": null
+      }
+    ],
+    "debtors": [
+      {
+        "paymentId": null,
+        "student": {
+          "id": "cm9student8",
+          "firstName": "Javohir",
+          "lastName": "Rasulov",
+          "phone": "998901112299",
+          "parentPhone": "998901110009",
+          "parentName": "Zarina opa",
+          "status": "ACTIVE"
+        },
+        "billingMonth": "2026-03-01T00:00:00.000Z",
+        "dueDate": "2026-03-15T00:00:00.000Z",
+        "amount": 100000,
+        "paidAmount": 0,
+        "debtAmount": 100000,
+        "status": "UNPAID",
+        "paidAt": null,
+        "notes": null
+      }
+    ],
+    "entries": []
+  },
+  "error": null
+}
+```
 
 ### `POST /api/payments`
 

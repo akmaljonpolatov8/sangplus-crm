@@ -121,15 +121,32 @@ Rules:
 4. Add students from the `students` sheet
 5. Link students to groups using `student_group_links`
 
-## Future Backend Bulk Import
+## Backend Import Command
 
-When you are ready, a backend import endpoint can read these sheets and:
+This repo now includes a backend-side CLI importer for generated CSV files.
 
-- validate required fields
-- create teachers
-- create groups with timetable fields
-- create students
-- attach students to groups
-- return row-level errors for invalid records
+Run:
 
-That future endpoint should live in backend, not frontend.
+```bash
+npm run import:generated
+```
+
+Default input directory:
+
+```text
+docs/generated-import
+```
+
+What it does:
+
+- reuses existing teachers when possible
+- creates or updates groups
+- creates or updates students
+- creates missing student-group links
+- prints warnings for unresolved rows
+
+Recommended flow:
+
+1. Generate CSV files from the Excel workbook
+2. Run `npm run db:seed` if base users are needed
+3. Run `npm run import:generated`

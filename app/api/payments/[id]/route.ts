@@ -2,7 +2,12 @@ import { Prisma, Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { handleApiError, jsonError, jsonSuccess, parseJson } from "@/lib/api";
 import { db } from "@/lib/db";
-import { calculatePaymentStatus, serializeOwnerPayment } from "@/lib/payments";
+import {
+  assertValidPaymentAmounts,
+  calculatePaymentStatus,
+  serializeOwnerPayment,
+  toNumberAmount,
+} from "@/lib/payments";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -55,6 +60,12 @@ export async function PATCH(
 
     const amount = body.amount ?? Number(payment.amount);
     const paidAmount = body.paidAmount ?? Number(payment.paidAmount ?? 0);
+
+    if (paidAmount > amount) {
+      return jsonError(400, "Paid amount cannot be greater than the total amount");
+    }
+
+    assertValidPaymentAmounts(amount, paidAmount);
     const status = calculatePaymentStatus({
       amount,
       paidAmount,
@@ -69,7 +80,13 @@ export async function PATCH(
           body.paidAmount === undefined ? undefined : new Prisma.Decimal(paidAmount),
         paidAt:
           body.paidAt === undefined
-            ? undefined
+            ? body.paidAmount === undefined
+              ? undefined
+              : paidAmount > 0
+                ? payment.paidAmount && Number(payment.paidAmount) > 0
+                  ? undefined
+                  : new Date()
+                : null
             : body.paidAt === null
               ? null
               : new Date(body.paidAt),
@@ -103,7 +120,11 @@ export async function PATCH(
     });
 
     return jsonSuccess(
-      serializeOwnerPayment(updatedPayment),
+      serializeOwnerPayment({
+        ...updatedPayment,
+        amount: toNumberAmount(updatedPayment.amount),
+        paidAmount: toNumberAmount(updatedPayment.paidAmount),
+      }),
       "Payment updated successfully",
     );
   } catch (error) {

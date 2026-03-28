@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    await requireUser(request, [Role.OWNER]);
+    await requireUser(request, [Role.OWNER, Role.MANAGER]);
 
     const { groupIds, password, ...input } = await parseJson(request, createTeacherSchema);
     const uniqueGroupIds = uniqueValues(groupIds);

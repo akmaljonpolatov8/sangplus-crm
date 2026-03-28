@@ -4,11 +4,13 @@ import { requireUser } from "@/lib/auth";
 import { handleApiError, jsonError, jsonSuccess, parseJson } from "@/lib/api";
 import { db } from "@/lib/db";
 import {
+  assertValidPaymentAmounts,
   calculatePaymentStatus,
   getPaymentDueDate,
   normalizeBillingMonth,
   serializeManagerPayment,
   serializeOwnerPayment,
+  toNumberAmount,
 } from "@/lib/payments";
 import { z } from "zod";
 
@@ -50,7 +52,6 @@ export async function GET(request: NextRequest) {
     const paymentWhere = {
       studentId: query.studentId,
       groupId: query.groupId,
-      status: query.overdueOnly ? PaymentStatus.OVERDUE : query.status,
       ...(query.billingMonth
         ? { billingMonth: normalizeBillingMonth(query.billingMonth) }
         : {}),
@@ -86,8 +87,18 @@ export async function GET(request: NextRequest) {
         orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }],
       });
 
+      const serializedPayments = payments
+        .map(serializeOwnerPayment)
+        .filter((payment) =>
+          query.overdueOnly
+            ? payment.status === PaymentStatus.OVERDUE
+            : query.status
+              ? payment.status === query.status
+              : true,
+        );
+
       return jsonSuccess(
-        payments.map(serializeOwnerPayment),
+        serializedPayments,
         "Payments fetched successfully",
       );
     }
@@ -99,6 +110,8 @@ export async function GET(request: NextRequest) {
         billingMonth: true,
         dueDate: true,
         status: true,
+        amount: true,
+        paidAmount: true,
         student: {
           select: {
             id: true,
@@ -117,8 +130,18 @@ export async function GET(request: NextRequest) {
       orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }],
     });
 
+    const serializedPayments = payments
+      .map(serializeManagerPayment)
+      .filter((payment) =>
+        query.overdueOnly
+          ? payment.status === PaymentStatus.OVERDUE
+          : query.status
+            ? payment.status === query.status
+            : true,
+      );
+
     return jsonSuccess(
-      payments.map(serializeManagerPayment),
+      serializedPayments,
       "Payments fetched successfully",
     );
   } catch (error) {
@@ -161,6 +184,12 @@ export async function POST(request: Request) {
     const dueDate = getPaymentDueDate(billingMonth);
     const amount = body.amount ?? Number(groupStudent.group.monthlyFee);
     const paidAmount = body.paidAmount ?? 0;
+
+    if (paidAmount > amount) {
+      return jsonError(400, "Paid amount cannot be greater than the total amount");
+    }
+
+    assertValidPaymentAmounts(amount, paidAmount);
     const status = calculatePaymentStatus({
       amount,
       paidAmount,
@@ -229,7 +258,11 @@ export async function POST(request: Request) {
     });
 
     return jsonSuccess(
-      serializeOwnerPayment(payment),
+      serializeOwnerPayment({
+        ...payment,
+        amount: toNumberAmount(payment.amount),
+        paidAmount: toNumberAmount(payment.paidAmount),
+      }),
       "Payment created successfully",
       201,
     );

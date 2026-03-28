@@ -7,6 +7,36 @@ import { z } from "zod";
 
 export const runtime = "nodejs";
 
+function buildGroupSelect(role: Role) {
+  return {
+    id: true,
+    name: true,
+    subject: true,
+    scheduleDays: true,
+    startTime: true,
+    endTime: true,
+    isActive: true,
+    teacher: {
+      select: {
+        id: true,
+        fullName: true,
+        username: true,
+      },
+    },
+    _count: {
+      select: {
+        students: {
+          where: {
+            leftAt: null,
+          },
+        },
+        lessons: true,
+      },
+    },
+    ...(role === Role.OWNER ? { monthlyFee: true } : {}),
+  } satisfies Prisma.GroupSelect;
+}
+
 const groupsQuerySchema = z.object({
   teacherId: z.string().cuid().optional(),
   isActive: z
@@ -39,33 +69,7 @@ export async function GET(request: NextRequest) {
         isActive: query.isActive,
         teacherId: actor.role === Role.TEACHER ? actor.id : query.teacherId,
       },
-      select: {
-        id: true,
-        name: true,
-        subject: true,
-        scheduleDays: true,
-        startTime: true,
-        endTime: true,
-        monthlyFee: actor.role === Role.OWNER,
-        isActive: true,
-        teacher: {
-          select: {
-            id: true,
-            fullName: true,
-            username: true,
-          },
-        },
-        _count: {
-          select: {
-            students: {
-              where: {
-                leftAt: null,
-              },
-            },
-            lessons: true,
-          },
-        },
-      },
+      select: buildGroupSelect(actor.role),
       orderBy: { name: "asc" },
     });
 

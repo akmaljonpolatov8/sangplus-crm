@@ -15,8 +15,13 @@ export async function POST(request: Request) {
   try {
     const { username, password } = await parseJson(request, loginSchema);
 
-    const user = await db.user.findUnique({
-      where: { username },
+    const user = await db.user.findFirst({
+      where: {
+        username: {
+          equals: username,
+          mode: "insensitive",
+        },
+      },
       select: {
         id: true,
         username: true,

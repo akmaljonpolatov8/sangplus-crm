@@ -1,6 +1,6 @@
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
-import { handleApiError, parseJson } from "@/lib/api";
+import { handleApiError, jsonError, jsonSuccess, parseJson } from "@/lib/api";
 import { db } from "@/lib/db";
 import { z } from "zod";
 
@@ -31,33 +31,25 @@ export async function POST(request: Request) {
     });
 
     if (!group) {
-      return Response.json({ error: "Group not found" }, { status: 404 });
+      return jsonError(404, "Group not found");
     }
 
     if (actor.role === Role.TEACHER && group.teacherId !== actor.id) {
-      return Response.json({ error: "You can start lessons only for your groups" }, { status: 403 });
+      return jsonError(403, "You can start lessons only for your groups");
     }
 
-    const lesson = await db.lessonSession.upsert({
+    const existingLesson = await db.lessonSession.findUnique({
       where: {
         groupId_lessonDate: {
           groupId: body.groupId,
           lessonDate: normalizedLessonDate,
         },
       },
-      update: {
-        notes: body.notes,
-      },
-      create: {
-        groupId: body.groupId,
-        startedById: actor.id,
-        lessonDate: normalizedLessonDate,
-        notes: body.notes,
-      },
       select: {
         id: true,
         lessonDate: true,
         startedAt: true,
+        endedAt: true,
         notes: true,
         group: {
           select: {
@@ -74,7 +66,65 @@ export async function POST(request: Request) {
       },
     });
 
-    return Response.json({ data: lesson }, { status: 201 });
+    if (existingLesson) {
+      const lesson = body.notes
+        ? await db.lessonSession.update({
+            where: { id: existingLesson.id },
+            data: { notes: body.notes },
+            select: {
+              id: true,
+              lessonDate: true,
+              startedAt: true,
+              endedAt: true,
+              notes: true,
+              group: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              startedBy: {
+                select: {
+                  id: true,
+                  fullName: true,
+                },
+              },
+            },
+          })
+        : existingLesson;
+
+      return jsonSuccess(lesson, "Lesson already exists for this date");
+    }
+
+    const lesson = await db.lessonSession.create({
+      data: {
+        groupId: body.groupId,
+        startedById: actor.id,
+        lessonDate: normalizedLessonDate,
+        notes: body.notes,
+      },
+      select: {
+        id: true,
+        lessonDate: true,
+        startedAt: true,
+        endedAt: true,
+        notes: true,
+        group: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        startedBy: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    return jsonSuccess(lesson, "Lesson started successfully", 201);
   } catch (error) {
     return handleApiError(error, "Lesson start API error");
   }

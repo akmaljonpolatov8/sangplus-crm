@@ -5,6 +5,11 @@ export function normalizeBillingMonth(value: string | Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
+export function getBillingMonthEnd(value: string | Date) {
+  const month = normalizeBillingMonth(value);
+  return new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0));
+}
+
 export function getPaymentDueDate(billingMonth: string | Date) {
   const month = normalizeBillingMonth(billingMonth);
   return new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 15));
@@ -38,6 +43,21 @@ export function buildReminderText(studentName: string, groupName: string) {
   return `Hurmatli ota-ona, SangPlus o'quv markazidan eslatma. ${studentName} (${groupName}) bo'yicha to'lov kechiktirilgan. To'lovni imkon qadar tezroq amalga oshirishingizni so'raymiz.`;
 }
 
+export function assertValidPaymentAmounts(amount: number, paidAmount: number) {
+  if (paidAmount > amount) {
+    throw new Error("Paid amount cannot be greater than the total amount");
+  }
+}
+
+export function getDebtAmount(amount: number, paidAmount: number) {
+  return Math.max(0, amount - paidAmount);
+}
+
+export function toNumberAmount(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 type PaymentParty = {
   id: string;
   name: string;
@@ -67,11 +87,19 @@ type OwnerPayment = PaymentBase & {
 };
 
 export function serializeOwnerPayment(payment: OwnerPayment) {
+  const amount = toNumberAmount(payment.amount);
+  const paidAmount = toNumberAmount(payment.paidAmount);
+  const status = calculatePaymentStatus({
+    amount,
+    paidAmount,
+    dueDate: payment.dueDate,
+  });
+
   return {
     id: payment.id,
     billingMonth: payment.billingMonth,
     dueDate: payment.dueDate,
-    status: payment.status,
+    status,
     paidAt: payment.paidAt,
     notes: payment.notes,
     amount: payment.amount,
@@ -79,7 +107,7 @@ export function serializeOwnerPayment(payment: OwnerPayment) {
     student: payment.student,
     group: payment.group,
     reminderText:
-      payment.status === PaymentStatus.OVERDUE
+      status === PaymentStatus.OVERDUE
         ? buildReminderText(
             `${payment.student.firstName} ${payment.student.lastName}`,
             payment.group.name,
@@ -89,15 +117,21 @@ export function serializeOwnerPayment(payment: OwnerPayment) {
 }
 
 export function serializeManagerPayment(payment: PaymentBase) {
+  const status = calculatePaymentStatus({
+    amount: toNumberAmount((payment as { amount?: unknown }).amount, 0),
+    paidAmount: toNumberAmount((payment as { paidAmount?: unknown }).paidAmount, 0),
+    dueDate: payment.dueDate,
+  });
+
   return {
     id: payment.id,
     billingMonth: payment.billingMonth,
     dueDate: payment.dueDate,
-    status: payment.status,
+    status,
     student: payment.student,
     group: payment.group,
     reminderText:
-      payment.status === PaymentStatus.OVERDUE
+      status === PaymentStatus.OVERDUE
         ? buildReminderText(
             `${payment.student.firstName} ${payment.student.lastName}`,
             payment.group.name,

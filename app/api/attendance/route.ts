@@ -64,6 +64,8 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             lessonDate: true,
+            startedAt: true,
+            endedAt: true,
             group: {
               select: {
                 id: true,

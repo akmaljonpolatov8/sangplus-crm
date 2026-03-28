@@ -108,6 +108,7 @@ model LessonSession {
   startedById String
   lessonDate  DateTime     @db.Date
   startedAt   DateTime     @default(now())
+  endedAt     DateTime?
   notes       String?
   group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
   startedBy   User         @relation("LessonStartedBy", fields: [startedById], references: [id], onDelete: Restrict)
@@ -115,6 +116,7 @@ model LessonSession {
 
   @@unique([groupId, lessonDate])
   @@index([startedById])
+  @@index([groupId, endedAt])
 }
 
 model Attendance {
