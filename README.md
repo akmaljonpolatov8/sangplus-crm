@@ -52,6 +52,26 @@ npm run typecheck
 npm run dev
 ```
 
+## Vercel Deploy
+
+1. Add these environment variables in Vercel:
+
+```env
+DATABASE_URL="your-production-postgresql-url"
+AUTH_SECRET="your-long-random-secret"
+SMS_PROVIDER="generic"
+SMS_API_URL=""
+SMS_API_KEY=""
+SMS_SENDER="SangPlus"
+TWILIO_ACCOUNT_SID=""
+TWILIO_AUTH_TOKEN=""
+TWILIO_FROM=""
+```
+
+2. Deploy the repository as a standard Next.js project.
+3. After the first deploy, call `POST /api/setup/bootstrap-owner` once if your database has no users yet.
+4. Check `GET /api/health` to confirm the application and database are connected.
+
 ## Demo Users
 
 These users are created by the seed script:
