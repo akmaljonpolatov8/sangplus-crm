@@ -25,7 +25,21 @@ Required variables:
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/sangplus_crm?schema=public"
 AUTH_SECRET="replace-with-a-long-random-secret"
+SMS_PROVIDER="generic"
+SMS_API_URL="https://your-sms-provider/send"
+SMS_API_KEY="your-provider-api-key"
+SMS_SENDER="SangPlus"
+
+# Twilio only (if SMS_PROVIDER=twilio)
+TWILIO_ACCOUNT_SID=""
+TWILIO_AUTH_TOKEN=""
+TWILIO_FROM=""
 ```
+
+If `SMS_API_URL` and `SMS_API_KEY` are not provided, reminder endpoint works in mock mode (logs only).
+
+Supported providers: `twilio`, `eskiz`, `playmobile`, `generic`.
+Detailed setup: [docs/sms-integration.md](docs/sms-integration.md)
 
 ## Setup
 
@@ -58,13 +72,13 @@ npm run typecheck
 
 ## Manual Testing
 
-- API contract: [api-contract.md](/c:/Users/Akmaljon/sangplus-crm/docs/api-contract.md)
-- Manual requests: [manual-test.http](/c:/Users/Akmaljon/sangplus-crm/docs/manual-test.http)
+- API contract: [docs/api-contract.md](docs/api-contract.md)
+- Manual requests: [docs/manual-test.http](docs/manual-test.http)
 
 ## Excel Preparation
 
-- Import guide: [excel-import-guide.md](/c:/Users/Akmaljon/sangplus-crm/docs/excel-import-guide.md)
-- Teacher template: [teachers.csv](/c:/Users/Akmaljon/sangplus-crm/docs/templates/teachers.csv)
-- Group template: [groups.csv](/c:/Users/Akmaljon/sangplus-crm/docs/templates/groups.csv)
-- Student template: [students.csv](/c:/Users/Akmaljon/sangplus-crm/docs/templates/students.csv)
-- Student-group link template: [student_group_links.csv](/c:/Users/Akmaljon/sangplus-crm/docs/templates/student_group_links.csv)
+- Import guide: [docs/excel-import-guide.md](docs/excel-import-guide.md)
+- Teacher template: [docs/templates/teachers.csv](docs/templates/teachers.csv)
+- Group template: [docs/templates/groups.csv](docs/templates/groups.csv)
+- Student template: [docs/templates/students.csv](docs/templates/students.csv)
+- Student-group link template: [docs/templates/student_group_links.csv](docs/templates/student_group_links.csv)

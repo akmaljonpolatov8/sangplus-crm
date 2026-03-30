@@ -1,9 +1,16 @@
 import { Role } from "@prisma/client";
 import type { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { handleApiError, jsonError, jsonSuccess, parseJson, uniqueValues } from "@/lib/api";
+import {
+  handleApiError,
+  jsonError,
+  jsonSuccess,
+  parseJson,
+  uniqueValues,
+} from "@/lib/api";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { strongPasswordSchema, usernameSchema } from "@/lib/validation";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -17,8 +24,8 @@ const teachersQuerySchema = z.object({
 });
 
 const createTeacherSchema = z.object({
-  username: z.string().trim().min(3).max(50),
-  password: z.string().min(6).max(100),
+  username: usernameSchema,
+  password: strongPasswordSchema,
   fullName: z.string().trim().min(1).max(100),
   isActive: z.boolean().default(true),
   groupIds: z.array(z.string().cuid()).default([]),
@@ -76,7 +83,10 @@ export async function POST(request: Request) {
   try {
     await requireUser(request, [Role.OWNER, Role.MANAGER]);
 
-    const { groupIds, password, ...input } = await parseJson(request, createTeacherSchema);
+    const { groupIds, password, ...input } = await parseJson(
+      request,
+      createTeacherSchema,
+    );
     const uniqueGroupIds = uniqueValues(groupIds);
 
     if (uniqueGroupIds.length > 0) {

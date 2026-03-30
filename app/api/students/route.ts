@@ -1,8 +1,15 @@
 import { Role, StudentStatus } from "@prisma/client";
 import type { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { handleApiError, jsonError, jsonSuccess, parseJson, uniqueValues } from "@/lib/api";
+import {
+  handleApiError,
+  jsonError,
+  jsonSuccess,
+  parseJson,
+  uniqueValues,
+} from "@/lib/api";
 import { db } from "@/lib/db";
+import { optionalPhoneSchema, requiredPhoneSchema } from "@/lib/validation";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -10,8 +17,8 @@ export const runtime = "nodejs";
 const createStudentSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
-  phone: z.string().trim().min(5).max(30).optional(),
-  parentPhone: z.string().trim().min(5).max(30),
+  phone: optionalPhoneSchema,
+  parentPhone: requiredPhoneSchema,
   parentName: z.string().trim().max(100).optional(),
   notes: z.string().trim().max(1000).optional(),
   status: z.nativeEnum(StudentStatus).default(StudentStatus.ACTIVE),
@@ -26,7 +33,11 @@ const studentQuerySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const actor = await requireUser(request, [Role.OWNER, Role.MANAGER, Role.TEACHER]);
+    const actor = await requireUser(request, [
+      Role.OWNER,
+      Role.MANAGER,
+      Role.TEACHER,
+    ]);
     const query = studentQuerySchema.parse({
       search: request.nextUrl.searchParams.get("search") ?? undefined,
       status: request.nextUrl.searchParams.get("status") ?? undefined,
@@ -106,7 +117,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   try {
     await requireUser(request, [Role.OWNER, Role.MANAGER]);
-    const { groupIds, ...studentData } = await parseJson(request, createStudentSchema);
+    const { groupIds, ...studentData } = await parseJson(
+      request,
+      createStudentSchema,
+    );
     const uniqueGroupIds = uniqueValues(groupIds);
 
     if (uniqueGroupIds.length > 0) {

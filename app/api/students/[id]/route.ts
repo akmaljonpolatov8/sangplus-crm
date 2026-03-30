@@ -1,7 +1,14 @@
 import { Role, StudentStatus } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
-import { handleApiError, jsonError, jsonSuccess, parseJson, uniqueValues } from "@/lib/api";
+import {
+  handleApiError,
+  jsonError,
+  jsonSuccess,
+  parseJson,
+  uniqueValues,
+} from "@/lib/api";
 import { db } from "@/lib/db";
+import { nullablePhoneSchema, requiredPhoneSchema } from "@/lib/validation";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -13,8 +20,8 @@ const paramsSchema = z.object({
 const updateStudentSchema = z.object({
   firstName: z.string().trim().min(1).max(100).optional(),
   lastName: z.string().trim().min(1).max(100).optional(),
-  phone: z.string().trim().min(5).max(30).nullable().optional(),
-  parentPhone: z.string().trim().min(5).max(30).optional(),
+  phone: nullablePhoneSchema,
+  parentPhone: requiredPhoneSchema.optional(),
   parentName: z.string().trim().max(100).nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
   status: z.nativeEnum(StudentStatus).optional(),
@@ -83,7 +90,10 @@ export async function PATCH(
         const now = new Date();
 
         for (const membership of memberships) {
-          if (membership.leftAt === null && !groupIds.includes(membership.groupId)) {
+          if (
+            membership.leftAt === null &&
+            !groupIds.includes(membership.groupId)
+          ) {
             await tx.groupStudent.update({
               where: { id: membership.id },
               data: { leftAt: now },

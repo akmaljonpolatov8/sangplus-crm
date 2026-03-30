@@ -24,7 +24,9 @@ async function main() {
   console.log("  - Temur_SP / Temur_SP0101");
   console.log("  - Umidjon_SP / Umidjon_1919SP");
   console.log("  - Kamron_SP / SP_Kamron1111");
-  console.log(`Groups created: ${groups.map((group) => group.name).join(", ")}`);
+  console.log(
+    `Groups created: ${groups.map((group) => group.name).join(", ")}`,
+  );
 }
 
 async function createUsers() {
@@ -37,7 +39,12 @@ async function createUsers() {
   });
 
   const shoxsanam = await db.user.create({
-    data: buildUser("Shoxsanam_SP", "Shoxsanam", Role.TEACHER, "Shoxsanam_sang0484"),
+    data: buildUser(
+      "Shoxsanam_SP",
+      "Shoxsanam",
+      Role.TEACHER,
+      "Shoxsanam_sang0484",
+    ),
   });
 
   const nodirjon = await db.user.create({
@@ -72,47 +79,82 @@ async function createGroups(users: Awaited<ReturnType<typeof createUsers>>) {
     {
       name: "Shoxsanam Group",
       teacherId: users.shoxsanam.id,
-      subject: "General English",
-      scheduleDays: ["Monday", "Wednesday", "Friday"],
-      startTime: "09:00",
-      endTime: "10:30",
-      monthlyFee: 500000,
+      subject: "General",
+      scheduleDays: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ],
+      startTime: "08:00",
+      endTime: "19:00",
+      monthlyFee: 1600000,
+    },
+    {
+      name: "Nodirjon Group",
+      teacherId: users.nodirjon.id,
+      subject: "General",
+      scheduleDays: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ],
+      startTime: "08:00",
+      endTime: "19:00",
+      monthlyFee: 1600000,
     },
     {
       name: "Umidjon Group",
       teacherId: users.umidjon.id,
-      subject: "Mathematics",
-      scheduleDays: ["Tuesday", "Thursday", "Saturday"],
-      startTime: "10:00",
-      endTime: "11:30",
-      monthlyFee: 500000,
+      subject: "General",
+      scheduleDays: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ],
+      startTime: "08:00",
+      endTime: "19:00",
+      monthlyFee: 1600000,
     },
     {
       name: "Temur Group",
       teacherId: users.temur.id,
-      subject: "Physics",
-      scheduleDays: ["Monday", "Wednesday", "Saturday"],
-      startTime: "14:00",
-      endTime: "15:30",
-      monthlyFee: 550000,
+      subject: "General",
+      scheduleDays: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ],
+      startTime: "08:00",
+      endTime: "19:00",
+      monthlyFee: 1600000,
     },
     {
-      name: "Kamron Group",
+      name: "Kamron 2 Group",
       teacherId: users.kamron.id,
-      subject: "IELTS",
-      scheduleDays: ["Tuesday", "Thursday"],
-      startTime: "16:00",
-      endTime: "17:30",
-      monthlyFee: 600000,
-    },
-    {
-      name: "Kamron2 Group",
-      teacherId: users.kamron.id,
-      subject: "IELTS",
-      scheduleDays: ["Friday", "Sunday"],
-      startTime: "18:00",
-      endTime: "19:30",
-      monthlyFee: 600000,
+      subject: "General",
+      scheduleDays: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ],
+      startTime: "08:00",
+      endTime: "19:00",
+      monthlyFee: 1600000,
     },
   ];
 
@@ -129,7 +171,12 @@ async function createGroups(users: Awaited<ReturnType<typeof createUsers>>) {
   );
 }
 
-function buildUser(username: string, fullName: string, role: Role, password: string) {
+function buildUser(
+  username: string,
+  fullName: string,
+  role: Role,
+  password: string,
+) {
   return {
     username,
     fullName,

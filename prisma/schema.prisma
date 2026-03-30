@@ -43,6 +43,7 @@ model User {
   groups             Group[]
   startedLessons     LessonSession[] @relation("LessonStartedBy")
   recordedAttendance Attendance[]    @relation("AttendanceRecordedBy")
+  sentSmsReminders   SmsReminderLog[] @relation("SmsRemindersSentBy")
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
@@ -61,6 +62,7 @@ model Student {
   groups      GroupStudent[]
   attendances Attendance[]
   payments    Payment[]
+  smsReminders SmsReminderLog[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -83,6 +85,7 @@ model Group {
   students      GroupStudent[]
   lessons       LessonSession[]
   payments      Payment[]
+  smsReminders  SmsReminderLog[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -154,4 +157,26 @@ model Payment {
   @@unique([studentId, groupId, billingMonth])
   @@index([status, dueDate])
   @@index([studentId, dueDate])
+}
+
+model SmsReminderLog {
+  id          String   @id @default(cuid())
+  groupId     String
+  billingMonth DateTime @db.Date
+  studentId   String
+  studentName String
+  parentPhone String
+  message     String
+  provider    String
+  status      String
+  externalId  String?
+  errorMessage String?
+  sentById    String
+  createdAt   DateTime @default(now())
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  sentBy      User     @relation("SmsRemindersSentBy", fields: [sentById], references: [id], onDelete: Restrict)
+
+  @@index([groupId, billingMonth, createdAt])
+  @@index([studentId, createdAt])
 }

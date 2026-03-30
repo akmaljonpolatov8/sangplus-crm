@@ -75,3 +75,18 @@ POST {{baseUrl}}/api/lessons/paste-lesson-id-here/stop
 ### Payment Summary By Group And Month
 GET {{baseUrl}}/api/payments/summary?groupId=paste-group-id-here&billingMonth=2026-03-01
 {{auth}}
+
+### Send Overdue Payment Reminders (SMS)
+POST {{baseUrl}}/api/payments/reminders
+{{json}}
+{{auth}}
+
+{
+  "groupId": "paste-group-id-here",
+  "billingMonth": "2026-03-01",
+  "dryRun": true
+}
+
+### Reminder History
+GET {{baseUrl}}/api/payments/reminders?groupId=paste-group-id-here&billingMonth=2026-03-01&limit=50
+{{auth}}

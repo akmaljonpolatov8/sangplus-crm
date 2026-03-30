@@ -1,8 +1,15 @@
 import { Role } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
-import { handleApiError, jsonError, jsonSuccess, parseJson, uniqueValues } from "@/lib/api";
+import {
+  handleApiError,
+  jsonError,
+  jsonSuccess,
+  parseJson,
+  uniqueValues,
+} from "@/lib/api";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { strongPasswordSchema, usernameSchema } from "@/lib/validation";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -12,8 +19,8 @@ const paramsSchema = z.object({
 });
 
 const updateTeacherSchema = z.object({
-  username: z.string().trim().min(3).max(50).optional(),
-  password: z.string().min(6).max(100).optional(),
+  username: usernameSchema.optional(),
+  password: strongPasswordSchema.optional(),
   fullName: z.string().trim().min(1).max(100).optional(),
   isActive: z.boolean().optional(),
   groupIds: z.array(z.string().cuid()).optional(),
@@ -27,11 +34,20 @@ export async function PATCH(
     const actor = await requireUser(request, [Role.OWNER, Role.MANAGER]);
 
     const { id } = paramsSchema.parse(await params);
-    const { groupIds, password, ...body } = await parseJson(request, updateTeacherSchema);
+    const { groupIds, password, ...body } = await parseJson(
+      request,
+      updateTeacherSchema,
+    );
     const uniqueGroupIds = groupIds ? uniqueValues(groupIds) : undefined;
 
-    if (actor.role === Role.MANAGER && (password !== undefined || body.isActive !== undefined)) {
-      return jsonError(403, "Manager cannot change teacher password or active status");
+    if (
+      actor.role === Role.MANAGER &&
+      (password !== undefined || body.isActive !== undefined)
+    ) {
+      return jsonError(
+        403,
+        "Manager cannot change teacher password or active status",
+      );
     }
 
     const teacher = await db.user.findFirst({

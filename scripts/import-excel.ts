@@ -49,7 +49,7 @@ const DEFAULT_GROUP_SUBJECT = "General";
 const DEFAULT_GROUP_SCHEDULE_DAYS = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday";
 const DEFAULT_GROUP_START_TIME = "08:00";
 const DEFAULT_GROUP_END_TIME = "19:00";
-const DEFAULT_GROUP_MONTHLY_FEE = "100000";
+const DEFAULT_GROUP_MONTHLY_FEE = "1600000";
 
 const teacherAliases: Record<string, string> = {
   Kamron: "Nodirjon",

@@ -164,7 +164,7 @@ async function main() {
       scheduleDays: parseScheduleDays(group.schedule_days),
       startTime: emptyToNull(group.start_time),
       endTime: emptyToNull(group.end_time),
-      monthlyFee: new Prisma.Decimal(parseDecimal(group.monthly_fee, 100000)),
+      monthlyFee: new Prisma.Decimal(parseDecimal(group.monthly_fee, 1600000)),
       teacherId: teacher.id,
       isActive: parseBoolean(group.is_active, true),
     };
