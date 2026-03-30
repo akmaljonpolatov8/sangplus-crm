@@ -42,13 +42,14 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const [userName, setUserNameState] = useState<string>("Foydalanuvchi");
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from sessionStorage on mount (client-side only)
   useEffect(() => {
-    const savedRole = getInitialRole();
-    const savedName = getInitialUserName();
-    setRoleState(savedRole);
-    setUserNameState(savedName);
-    setIsLoaded(true);
+    const frameId = window.requestAnimationFrame(() => {
+      setRoleState(getInitialRole());
+      setUserNameState(getInitialUserName());
+      setIsLoaded(true);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, []);
 
   const setRole = (newRole: UserRole) => {

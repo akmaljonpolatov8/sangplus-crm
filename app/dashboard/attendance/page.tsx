@@ -290,7 +290,7 @@ export default function AttendancePage() {
 
         <Card>
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>O'quvchilar ro'yxati</CardTitle>
+            <CardTitle>O&apos;quvchilar ro&apos;yxati</CardTitle>
             <Button onClick={saveAttendance} disabled={isSaving || isLoading}>
               {isSaving ? "Saqlanmoqda..." : "Davomatni saqlash"}
             </Button>

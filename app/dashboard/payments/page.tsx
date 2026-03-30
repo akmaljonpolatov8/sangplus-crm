@@ -613,7 +613,7 @@ export default function PaymentsPage() {
           </Card>
           <Card>
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Kim to'lagan</p>
+              <p className="text-xs text-muted-foreground">Kim to&apos;lagan</p>
               <p className="text-lg font-semibold">{stats.paidCount}</p>
             </CardContent>
           </Card>
@@ -652,7 +652,7 @@ export default function PaymentsPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <p className="mb-2 font-medium">Kim to'lagan</p>
+                <p className="mb-2 font-medium">Kim to&apos;lagan</p>
                 {summary?.paidStudents && summary.paidStudents.length > 0 ? (
                   <ul className="space-y-1">
                     {summary.paidStudents.map((item) => {
@@ -669,7 +669,7 @@ export default function PaymentsPage() {
                     })}
                   </ul>
                 ) : (
-                  <p className="text-muted-foreground">Ma'lumot yo'q</p>
+                  <p className="text-muted-foreground">Ma&apos;lumot yo&apos;q</p>
                 )}
               </div>
 
@@ -693,7 +693,7 @@ export default function PaymentsPage() {
                     })}
                   </ul>
                 ) : (
-                  <p className="text-muted-foreground">Ma'lumot yo'q</p>
+                  <p className="text-muted-foreground">Ma&apos;lumot yo&apos;q</p>
                 )}
               </div>
             </div>
@@ -716,7 +716,7 @@ export default function PaymentsPage() {
                 {formData.id ? "To'lovni tahrirlash" : "To'lov qo'shish"}
               </DialogTitle>
               <DialogDescription>
-                paidAmount amountdan katta bo'lmasligi kerak.
+                paidAmount amountdan katta bo&apos;lmasligi kerak.
               </DialogDescription>
             </DialogHeader>
 

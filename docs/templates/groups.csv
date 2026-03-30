@@ -1,0 +1,3 @@
+name,subject,schedule_days,start_time,end_time,monthly_fee,teacher_username,is_active
+Bio-1,Biologiya,"Dushanba,Chorshanba,Juma",16:00,18:00,450000,teacher_diyora,true
+Kimyo-1,Kimyo,"Seshanba,Payshanba,Shanba",15:30,17:30,480000,teacher_sardor,true

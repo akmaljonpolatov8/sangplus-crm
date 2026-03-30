@@ -9,8 +9,15 @@ next.user-config.*
 
 # Environment variables
 .env*.local
+.env
+.env.production
+.env.development
+!.env.example
 
 # Common ignores
 node_modules
 .next/
 .DS_Store
+coverage
+build
+*.tsbuildinfo

@@ -126,7 +126,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">
-                O'quvchilar
+                O&apos;quvchilar
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -137,7 +137,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">
-                O'qituvchilar
+                O&apos;qituvchilar
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -171,9 +171,9 @@ export default function DashboardPage() {
         {canSeePayments && (
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>To'lovlar summary</CardTitle>
+              <CardTitle>To&apos;lovlar summary</CardTitle>
               <Button asChild variant="outline" size="sm">
-                <Link href="/dashboard/payments">To'lovlar sahifasi</Link>
+                <Link href="/dashboard/payments">To&apos;lovlar sahifasi</Link>
               </Button>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3">
