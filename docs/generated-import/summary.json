@@ -1,0 +1,12 @@
+{
+  "sourceFile": "c:\\Users\\Akmaljon\\OneDrive\\Рабочий стол\\exel doc\\sangplus_all_students.xlsx",
+  "counts": {
+    "teachers": 5,
+    "groups": 5,
+    "students": 112,
+    "studentGroupLinks": 112
+  },
+  "warnings": [
+    "Skipped row with missing required values: {\"Teacher\":\"Kamron2\",\"Group\":\"Kamron2\",\"Full Name\":\"Xanobiddinova Dilnoza\",\"Parent/Info\":\"Raxmatulla qizi\",\"Phone\":\"\"}"
+  ]
+}

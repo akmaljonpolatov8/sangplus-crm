@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SangPlus CRM Backend MVP
 
-## Getting Started
+Backend for a learning center CRM built with Next.js App Router, TypeScript, Prisma, and PostgreSQL.
 
-First, run the development server:
+## What Is Ready
+
+- Prisma schema
+- Prisma client setup
+- Auth with username + password
+- Bootstrap route for first `OWNER`
+- Role-based access for `OWNER`, `MANAGER`, `TEACHER`
+- API routes for students, teachers, groups, lessons, attendance, and payments
+- Overdue payment detection and reminder text logic
+
+## Environment
+
+Create `.env` from `.env.example`.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Required variables:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/sangplus_crm?schema=public"
+AUTH_SECRET="replace-with-a-long-random-secret"
+SMS_PROVIDER="generic"
+SMS_API_URL="https://your-sms-provider/send"
+SMS_API_KEY="your-provider-api-key"
+SMS_SENDER="SangPlus"
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Twilio only (if SMS_PROVIDER=twilio)
+TWILIO_ACCOUNT_SID=""
+TWILIO_AUTH_TOKEN=""
+TWILIO_FROM=""
+```
 
-## Learn More
+If `SMS_API_URL` and `SMS_API_KEY` are not provided, reminder endpoint works in mock mode (logs only).
 
-To learn more about Next.js, take a look at the following resources:
+Supported providers: `twilio`, `eskiz`, `playmobile`, `generic`.
+Detailed setup: [docs/sms-integration.md](docs/sms-integration.md)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+npm run db:generate
+npm run db:migrate -- --name init
+npm run db:seed
+npm run typecheck
+npm run dev
+```
 
-## Deploy on Vercel
+## Demo Users
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+These users are created by the seed script:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `owner_sangplus` / `Owner123`
+- `manager_sangplus` / `Manager123`
+- `teacher_diyora` / `Teacher123`
+
+## Useful Commands
+
+```bash
+npm run db:generate
+npm run db:migrate -- --name init
+npm run db:seed
+npm run lint
+npm run typecheck
+```
+
+## Manual Testing
+
+- API contract: [docs/api-contract.md](docs/api-contract.md)
+- Manual requests: [docs/manual-test.http](docs/manual-test.http)
+
+## Excel Preparation
+
+- Import guide: [docs/excel-import-guide.md](docs/excel-import-guide.md)
+- Teacher template: [docs/templates/teachers.csv](docs/templates/teachers.csv)
+- Group template: [docs/templates/groups.csv](docs/templates/groups.csv)
+- Student template: [docs/templates/students.csv](docs/templates/students.csv)
+- Student-group link template: [docs/templates/student_group_links.csv](docs/templates/student_group_links.csv)

@@ -1,0 +1,6 @@
+name,subject,schedule_days,start_time,end_time,monthly_fee,teacher_username,is_active
+Kamron 2 Group,General,"Monday,Tuesday,Wednesday,Thursday,Friday,Saturday",08:00,19:00,1600000,kamron_sp,true
+Nodirjon Group,General,"Monday,Tuesday,Wednesday,Thursday,Friday,Saturday",08:00,19:00,1600000,nodirjon_sp,true
+Temur Group,General,"Monday,Tuesday,Wednesday,Thursday,Friday,Saturday",08:00,19:00,1600000,temur_sp,true
+Umidjon Group,General,"Monday,Tuesday,Wednesday,Thursday,Friday,Saturday",08:00,19:00,1600000,umidjon_sp,true
+Shoxsanam Group,General,"Monday,Tuesday,Wednesday,Thursday,Friday,Saturday",08:00,19:00,1600000,shoxsanam_sp,true
