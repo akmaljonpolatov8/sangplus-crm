@@ -6,8 +6,16 @@ import { DashboardHeader } from "@/components/dashboard/header";
 import { DataTable } from "@/components/dashboard/data-table";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -28,12 +36,10 @@ import {
   extractList,
   getApiErrorMessage,
   groupsAPI,
+  teachersAPI,
 } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
-import {
-  clearLegacyDashboardCache,
-  formatCurrency,
-} from "@/lib-frontend/utils";
+import { clearLegacyDashboardCache, formatCurrency } from "@/lib-frontend/utils";
 
 interface GroupRecord {
   id: string;
@@ -48,35 +54,43 @@ interface GroupRecord {
   isActive?: boolean;
 }
 
+interface TeacherItem {
+  id: string;
+  fullName?: string;
+  isActive?: boolean;
+}
+
 interface GroupForm {
   id?: string;
   name: string;
   subject: string;
-  scheduleDaysText: string;
+  scheduleDays: string[];
   startTime: string;
   endTime: string;
   monthlyFee: string;
   teacherId: string;
-  isActive: string;
+  isActive: boolean;
 }
+
+const HAFTA_KUNLARI = [
+  "Dushanba",
+  "Seshanba",
+  "Chorshanba",
+  "Payshanba",
+  "Juma",
+  "Shanba",
+] as const;
 
 const initialForm: GroupForm = {
   name: "",
   subject: "",
-  scheduleDaysText: "",
+  scheduleDays: [],
   startTime: "",
   endTime: "",
   monthlyFee: "",
   teacherId: "",
-  isActive: "true",
+  isActive: true,
 };
-
-function parseScheduleDays(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
 
 export default function GroupsPage() {
   const router = useRouter();
@@ -84,6 +98,7 @@ export default function GroupsPage() {
   const canAccess = hasAccess(role, "groups");
 
   const [groups, setGroups] = useState<GroupRecord[]>([]);
+  const [teachers, setTeachers] = useState<TeacherItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,12 +108,20 @@ export default function GroupsPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
-  const loadGroups = async () => {
+  const loadData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await groupsAPI.list();
-      setGroups(extractList<GroupRecord>(data, ["groups"]));
+      const [groupsData, teachersData] = await Promise.all([
+        groupsAPI.list(),
+        teachersAPI.list(),
+      ]);
+      setGroups(extractList<GroupRecord>(groupsData, ["groups"]));
+      setTeachers(
+        extractList<TeacherItem>(teachersData, ["teachers"]).filter(
+          (teacher) => teacher.isActive !== false,
+        ),
+      );
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -112,7 +135,7 @@ export default function GroupsPage() {
       return;
     }
     clearLegacyDashboardCache();
-    loadGroups();
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
 
@@ -128,37 +151,52 @@ export default function GroupsPage() {
       id: group.id,
       name: group.name || "",
       subject: group.subject || "",
-      scheduleDaysText: (group.scheduleDays || []).join(", "),
+      scheduleDays: group.scheduleDays || [],
       startTime: group.startTime || "",
       endTime: group.endTime || "",
       monthlyFee: String(group.monthlyFee ?? ""),
       teacherId: group.teacherId || group.teacher?.id || "",
-      isActive: String(Boolean(group.isActive)),
+      isActive: Boolean(group.isActive),
     });
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
   };
 
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) errors.name = "Guruh nomini kiriting";
+    if (!formData.teacherId) errors.teacherId = "O'qituvchini tanlang";
+    if (formData.scheduleDays.length === 0)
+      errors.scheduleDays = "Kamida bitta dars kunini tanlang";
+
+    const monthlyFee = Number(formData.monthlyFee);
+    if (!formData.monthlyFee.trim() || Number.isNaN(monthlyFee) || monthlyFee <= 0) {
+      errors.monthlyFee = "Oylik to'lov to'g'ri kiritilishi shart";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const submitGroup = async () => {
+    if (!validateForm()) return;
+
     setIsSaving(true);
     setFormError(null);
-    setFieldErrors({});
 
     try {
       const payload: Record<string, unknown> = {
         name: formData.name.trim(),
         subject: formData.subject.trim() || null,
-        scheduleDays: parseScheduleDays(formData.scheduleDaysText),
+        scheduleDays: formData.scheduleDays,
         startTime: formData.startTime.trim() || null,
         endTime: formData.endTime.trim() || null,
-        teacherId: formData.teacherId.trim() || null,
-        isActive: formData.isActive === "true",
+        teacherId: formData.teacherId,
+        isActive: formData.isActive,
+        monthlyFee: Number(formData.monthlyFee),
       };
-
-      if (formData.monthlyFee.trim()) {
-        payload.monthlyFee = Number(formData.monthlyFee);
-      }
 
       if (formData.id) {
         await groupsAPI.update(formData.id, payload);
@@ -167,7 +205,7 @@ export default function GroupsPage() {
       }
 
       setIsDialogOpen(false);
-      await loadGroups();
+      await loadData();
     } catch (err) {
       if (
         err instanceof ApiClientError &&
@@ -200,11 +238,10 @@ export default function GroupsPage() {
       },
       {
         key: "schedule",
-        header: "Jadval",
+        header: "Dars kunlari",
         render: (group: GroupRecord) => (
           <span className="text-muted-foreground">
-            {(group.scheduleDays || []).join(", ") || "-"}{" "}
-            {group.startTime || ""} {group.endTime ? `- ${group.endTime}` : ""}
+            {(group.scheduleDays || []).join(", ") || "-"}
           </span>
         ),
       },
@@ -213,13 +250,13 @@ export default function GroupsPage() {
         header: "O'qituvchi",
         render: (group: GroupRecord) => (
           <span className="text-muted-foreground">
-            {group.teacher?.fullName || group.teacherId || "-"}
+            {group.teacher?.fullName || "-"}
           </span>
         ),
       },
       {
         key: "monthlyFee",
-        header: "Monthly fee",
+        header: "Oylik to'lov",
         render: (group: GroupRecord) => (
           <span className="text-muted-foreground">
             {group.monthlyFee == null ? "-" : formatCurrency(group.monthlyFee)}
@@ -279,25 +316,22 @@ export default function GroupsPage() {
           data={groups}
           columns={columns}
           searchPlaceholder="Guruh qidirish..."
-          addButtonLabel="Guruh qo'shish"
+          addButtonLabel="Yangi guruh"
           onAddClick={openCreate}
           showFilters={false}
         />
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>
-              {formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}
-            </DialogTitle>
+            <DialogTitle>{formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}</DialogTitle>
             <DialogDescription>
-              Backend contract: subject, scheduleDays, startTime, endTime,
-              teacherId, isActive.
+              Barcha maydonlarni to'g'ri to'ldiring va saqlang.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-2">
+          <div className="space-y-4 py-2">
             {formError && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
                 {formError}
@@ -305,20 +339,25 @@ export default function GroupsPage() {
             )}
 
             <div className="space-y-1">
-              <Label htmlFor="name">Nomi</Label>
+              <Label htmlFor="name">Guruh nomi</Label>
               <Input
                 id="name"
+                placeholder="Masalan: Nodirjon Group"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }
               />
+              {fieldErrors.name && (
+                <p className="text-xs text-destructive">{fieldErrors.name}</p>
+              )}
             </div>
 
             <div className="space-y-1">
               <Label htmlFor="subject">Fan</Label>
               <Input
                 id="subject"
+                placeholder="Masalan: Matematika"
                 value={formData.subject}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, subject: e.target.value }))
@@ -326,95 +365,116 @@ export default function GroupsPage() {
               />
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="scheduleDaysText">
-                Schedule days (vergul bilan)
-              </Label>
-              <Input
-                id="scheduleDaysText"
-                value={formData.scheduleDaysText}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    scheduleDaysText: e.target.value,
-                  }))
-                }
-              />
+            <div className="space-y-2">
+              <Label>Dars kunlari</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {HAFTA_KUNLARI.map((day) => {
+                  const checked = formData.scheduleDays.includes(day);
+                  return (
+                    <label key={day} className="flex items-center gap-2 rounded border px-3 py-2 text-sm">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(nextChecked) => {
+                          setFormData((prev) => {
+                            const nextDays = nextChecked
+                              ? [...prev.scheduleDays, day]
+                              : prev.scheduleDays.filter((item) => item !== day);
+                            return { ...prev, scheduleDays: nextDays };
+                          });
+                        }}
+                      />
+                      <span>{day}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              {fieldErrors.scheduleDays && (
+                <p className="text-xs text-destructive">{fieldErrors.scheduleDays}</p>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label htmlFor="startTime">Start time</Label>
+                <Label htmlFor="startTime">Boshlanish vaqti</Label>
                 <Input
                   id="startTime"
+                  type="time"
                   value={formData.startTime}
                   onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      startTime: e.target.value,
-                    }))
+                    setFormData((prev) => ({ ...prev, startTime: e.target.value }))
                   }
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="endTime">End time</Label>
+                <Label htmlFor="endTime">Tugash vaqti</Label>
                 <Input
                   id="endTime"
+                  type="time"
                   value={formData.endTime}
                   onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      endTime: e.target.value,
-                    }))
+                    setFormData((prev) => ({ ...prev, endTime: e.target.value }))
                   }
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="monthlyFee">Monthly fee</Label>
+              <Label htmlFor="monthlyFee">Oylik to'lov</Label>
               <Input
                 id="monthlyFee"
+                inputMode="decimal"
+                placeholder="Masalan: 400000"
                 value={formData.monthlyFee}
                 onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    monthlyFee: e.target.value,
-                  }))
+                  setFormData((prev) => ({ ...prev, monthlyFee: e.target.value }))
                 }
               />
+              {fieldErrors.monthlyFee && (
+                <p className="text-xs text-destructive">{fieldErrors.monthlyFee}</p>
+              )}
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="teacherId">Teacher ID</Label>
-              <Input
-                id="teacherId"
+              <Label>O'qituvchi</Label>
+              <Select
                 value={formData.teacherId}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    teacherId: e.target.value,
-                  }))
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, teacherId: value }))
                 }
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="O'qituvchini tanlang" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teachers.map((teacher) => (
+                    <SelectItem key={teacher.id} value={teacher.id}>
+                      {teacher.fullName || teacher.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldErrors.teacherId && (
+                <p className="text-xs text-destructive">{fieldErrors.teacherId}</p>
+              )}
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="isActive">Is active (true/false)</Label>
-              <Input
-                id="isActive"
-                value={formData.isActive}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, isActive: e.target.value }))
+              <Label>Holati</Label>
+              <Select
+                value={formData.isActive ? "true" : "false"}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, isActive: value === "true" }))
                 }
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Faol</SelectItem>
+                  <SelectItem value="false">Nofaol</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-
-            {Object.keys(fieldErrors).map((key) => (
-              <p key={key} className="text-xs text-destructive">
-                {fieldErrors[key]}
-              </p>
-            ))}
           </div>
 
           <DialogFooter>
@@ -422,9 +482,7 @@ export default function GroupsPage() {
               Bekor qilish
             </Button>
             <Button onClick={submitGroup} disabled={isSaving}>
-              {isSaving ? (
-                <CircleAlert className="mr-2 size-4 animate-spin" />
-              ) : null}
+              {isSaving ? <CircleAlert className="mr-2 size-4 animate-spin" /> : null}
               Saqlash
             </Button>
           </DialogFooter>

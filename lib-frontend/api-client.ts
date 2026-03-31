@@ -315,6 +315,10 @@ export const teachersAPI = {
   delete: (id: string) => apiDelete(`/api/teachers/${id}`),
 };
 
+export const usersAPI = {
+  create: (data: Record<string, unknown>) => apiPost("/api/users/create", data),
+};
+
 export const groupsAPI = {
   list: () => apiGet("/api/groups"),
   get: (id: string) => apiGet(`/api/groups/${id}`),
@@ -358,6 +362,14 @@ export const paymentsAPI = {
   },
 
   get: (id: string) => apiGet(`/api/payments/${id}`),
+  debtors: (params?: { groupId?: string; limit?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.groupId) search.set("groupId", params.groupId);
+    if (params?.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return apiGet(`/api/payments/debtors${query ? `?${query}` : ""}`);
+  },
+  generateMonthly: () => apiPost("/api/payments/generate-monthly", {}),
   create: (data: Record<string, unknown>) => apiPost("/api/payments", data),
   update: (id: string, data: Record<string, unknown>) =>
     apiPatch(`/api/payments/${id}`, data),

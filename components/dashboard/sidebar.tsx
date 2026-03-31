@@ -11,6 +11,7 @@ import {
   BookOpen,
   ClipboardCheck,
   CreditCard,
+  CircleDollarSign,
   LogOut,
   PlayCircle,
 } from "lucide-react";
@@ -72,6 +73,12 @@ const allNavigation: NavItem[] = [
     href: "/dashboard/payments",
     icon: CreditCard,
     feature: "payments",
+  },
+  {
+    name: "Qarzdorlar",
+    href: "/dashboard/debtors",
+    icon: CircleDollarSign,
+    feature: "debtors",
   },
 ];
 

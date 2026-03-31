@@ -62,7 +62,6 @@ export function clearLegacyDashboardCache() {
   ];
 
   for (const key of keys) {
-    localStorage.removeItem(key);
     sessionStorage.removeItem(key);
   }
 }

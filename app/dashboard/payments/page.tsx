@@ -129,6 +129,19 @@ interface Summary {
   }>;
 }
 
+interface DebtorItem {
+  paymentId: string;
+  studentId: string;
+  studentName: string;
+  phone?: string | null;
+  parentPhone?: string | null;
+  groupId: string;
+  groupName: string;
+  dueDate: string;
+  daysOverdue: number;
+  amount?: number;
+}
+
 function parseSummary(payload: unknown): Summary | null {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -258,10 +271,12 @@ export default function PaymentsPage() {
 
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [payments, setPayments] = useState<PaymentView[]>([]);
+  const [debtors, setDebtors] = useState<DebtorItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -302,7 +317,7 @@ export default function PaymentsPage() {
     setError(null);
 
     try {
-      const [groupsData, paymentsData] = await Promise.all([
+      const [groupsData, paymentsData, debtorsData] = await Promise.all([
         groupsAPI.list(),
         paymentsAPI.list({
           groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
@@ -310,12 +325,20 @@ export default function PaymentsPage() {
           status:
             selectedStatus === "all" ? undefined : selectedStatus.toUpperCase(),
         }),
+        paymentsAPI.debtors({
+          groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
+          limit: 200,
+        }),
       ]);
 
       const groupsList = extractList<GroupItem>(groupsData, ["groups"]);
       setGroups(groupsList);
       setPayments(
         extractList<PaymentRaw>(paymentsData, ["payments"]).map(mapPayment),
+      );
+      const debtorList = extractList<DebtorItem>(debtorsData, ["debtors"]);
+      setDebtors(
+        debtorList.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0)),
       );
       const summaryGroupId =
         selectedGroupId === "all" ? groupsList[0]?.id : selectedGroupId;
@@ -364,6 +387,19 @@ export default function PaymentsPage() {
       debtors: payments.filter((p) => p.status !== "PAID").length,
     };
   }, [payments]);
+
+  const generatePayments = async () => {
+    setIsGenerating(true);
+    setError(null);
+    try {
+      await paymentsAPI.generateMonthly();
+      await loadAll();
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const openCreate = () => {
     setFormData({ ...initialForm, billingMonth: selectedBillingMonth });
@@ -595,22 +631,26 @@ export default function PaymentsPage() {
         </Card>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Jami tushum</p>
-              <p className="text-lg font-semibold text-success">
-                {formatCurrency(stats.totalPaid)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Jami qarz</p>
-              <p className="text-lg font-semibold text-destructive">
-                {formatCurrency(stats.totalDebt)}
-              </p>
-            </CardContent>
-          </Card>
+          {canViewAmounts ? (
+            <>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-muted-foreground">Jami tushum</p>
+                  <p className="text-lg font-semibold text-success">
+                    {formatCurrency(stats.totalPaid)}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-xs text-muted-foreground">Jami qarz</p>
+                  <p className="text-lg font-semibold text-destructive">
+                    {formatCurrency(stats.totalDebt)}
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Kim to&apos;lagan</p>
@@ -627,7 +667,20 @@ export default function PaymentsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Summary</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Hisobot</CardTitle>
+              {role === "owner" ? (
+                <Button
+                  variant="outline"
+                  onClick={generatePayments}
+                  disabled={isGenerating}
+                >
+                  {isGenerating
+                    ? "Yaratilmoqda..."
+                    : "15 kunlik to'lov yaratish"}
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p>Guruh: {summary?.group?.name || "-"}</p>
@@ -636,19 +689,25 @@ export default function PaymentsPage() {
               {toYMD(summary?.billingMonth) || selectedBillingMonth}
             </p>
             <p>Due date: {summaryDueDate(summary, selectedBillingMonth)}</p>
-            <p>
-              Jami amount:{" "}
-              {formatCurrency(
-                summary?.totals?.expectedAmount ?? summary?.totals?.totalAmount,
-              )}
-            </p>
-            <p>
-              Jami paid:{" "}
-              {formatCurrency(
-                summary?.totals?.collectedAmount ?? summary?.totals?.paidAmount,
-              )}
-            </p>
-            <p>Jami debt: {formatCurrency(summary?.totals?.debtAmount)}</p>
+            {canViewAmounts ? (
+              <>
+                <p>
+                  Jami amount:{" "}
+                  {formatCurrency(
+                    summary?.totals?.expectedAmount ??
+                      summary?.totals?.totalAmount,
+                  )}
+                </p>
+                <p>
+                  Jami paid:{" "}
+                  {formatCurrency(
+                    summary?.totals?.collectedAmount ??
+                      summary?.totals?.paidAmount,
+                  )}
+                </p>
+                <p>Jami debt: {formatCurrency(summary?.totals?.debtAmount)}</p>
+              </>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
@@ -663,13 +722,17 @@ export default function PaymentsPage() {
                           className="flex justify-between rounded border p-2"
                         >
                           <span>{student.name}</span>
-                          <span>{formatCurrency(item.amount)}</span>
+                          {canViewAmounts ? (
+                            <span>{formatCurrency(item.amount)}</span>
+                          ) : null}
                         </li>
                       );
                     })}
                   </ul>
                 ) : (
-                  <p className="text-muted-foreground">Ma&apos;lumot yo&apos;q</p>
+                  <p className="text-muted-foreground">
+                    Ma&apos;lumot yo&apos;q
+                  </p>
                 )}
               </div>
 
@@ -685,15 +748,19 @@ export default function PaymentsPage() {
                           className="flex justify-between rounded border p-2"
                         >
                           <span>{student.name}</span>
-                          <span className="text-destructive">
-                            {formatCurrency(item.debtAmount)}
-                          </span>
+                          {canViewAmounts ? (
+                            <span className="text-destructive">
+                              {formatCurrency(item.debtAmount)}
+                            </span>
+                          ) : null}
                         </li>
                       );
                     })}
                   </ul>
                 ) : (
-                  <p className="text-muted-foreground">Ma&apos;lumot yo&apos;q</p>
+                  <p className="text-muted-foreground">
+                    Ma&apos;lumot yo&apos;q
+                  </p>
                 )}
               </div>
             </div>
@@ -708,6 +775,50 @@ export default function PaymentsPage() {
           onAddClick={openCreate}
           showFilters={false}
         />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Qarzdorlar</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {debtors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Qarzdorlar topilmadi
+              </p>
+            ) : (
+              debtors.map((debtor) => (
+                <div
+                  key={debtor.paymentId}
+                  className="rounded border p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{debtor.studentName}</p>
+                    <p className="text-destructive">
+                      {debtor.daysOverdue} kun o'tgan
+                    </p>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Guruh: {debtor.groupName}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Telefon: {debtor.phone || "-"}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Ota-ona telefoni: {debtor.parentPhone || "-"}
+                  </p>
+                  {canViewAmounts ? (
+                    <p className="text-destructive">
+                      Qarz miqdori: {formatCurrency(debtor.amount)}
+                    </p>
+                  ) : null}
+                  <Button className="mt-2" variant="outline" disabled>
+                    SMS yuborish
+                  </Button>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent>

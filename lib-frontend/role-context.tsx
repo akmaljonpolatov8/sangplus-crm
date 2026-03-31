@@ -110,6 +110,7 @@ export function hasAccess(role: UserRole, feature: string): boolean {
     lessons: ["owner", "manager", "teacher"],
     attendance: ["owner", "manager", "teacher"],
     payments: ["owner", "manager"],
+    debtors: ["owner", "manager"],
     "payments-amounts": ["owner"], // Only owner can see payment amounts
     "start-lesson": ["teacher"],
   };

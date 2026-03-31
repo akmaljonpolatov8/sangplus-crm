@@ -60,6 +60,7 @@ model Student {
   parentName  String?
   notes       String?
   status      StudentStatus   @default(ACTIVE)
+  nextPaymentDate DateTime?   @db.Date
   groups      GroupStudent[]
   attendances Attendance[]
   payments    Payment[]
@@ -70,6 +71,7 @@ model Student {
   @@index([status])
   @@index([lastName, firstName])
   @@index([parentPhone])
+  @@index([nextPaymentDate])
 }
 
 model Group {

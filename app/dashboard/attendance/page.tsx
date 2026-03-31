@@ -26,6 +26,37 @@ import { clearLegacyDashboardCache, toYMD } from "@/lib-frontend/utils";
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused" | null;
 
+const ATTENDANCE_STATUS_MAP: Record<string, Exclude<AttendanceStatus, null>> = {
+  PRESENT: "present",
+  ABSENT: "absent",
+  LATE: "late",
+  EXCUSED: "excused",
+  present: "present",
+  absent: "absent",
+  late: "late",
+  excused: "excused",
+};
+
+const ATTENDANCE_OPTIONS: Array<{
+  value: Exclude<AttendanceStatus, null>;
+  label: string;
+}> = [
+  { value: "present", label: "Keldi" },
+  { value: "absent", label: "Kelmadi" },
+  { value: "late", label: "Kechikdi" },
+  { value: "excused", label: "Sababli" },
+];
+
+function normalizeAttendanceStatus(value: unknown): AttendanceStatus {
+  if (!value) return null;
+  return ATTENDANCE_STATUS_MAP[String(value)] || null;
+}
+
+function toApiAttendanceStatus(value: AttendanceStatus) {
+  if (!value) return null;
+  return value.toUpperCase();
+}
+
 interface AttendanceStudent {
   id: string;
   studentId: string;
@@ -58,7 +89,7 @@ export default function AttendancePage() {
   const [error, setError] = useState<string | null>(null);
 
   const groupId = searchParams.get("groupId") || "";
-  const lessonDate = searchParams.get("lessonDate") || toYMD(new Date());
+  const lessonDate = toYMD(searchParams.get("lessonDate")) || toYMD(new Date());
 
   const updateParams = (next: { groupId?: string; lessonDate?: string }) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -116,8 +147,10 @@ export default function AttendancePage() {
         return;
       }
 
-      const lessonId = await resolveLessonId();
-      const attendance = await attendanceAPI.list({ lessonId });
+      const attendance = await attendanceAPI.list({
+        groupId,
+        lessonDate: toYMD(lessonDate),
+      });
       const attendanceList = extractList<Record<string, unknown>>(attendance, [
         "entries",
         "attendance",
@@ -147,7 +180,7 @@ export default function AttendancePage() {
             id: String(item.id ?? studentId ?? `${studentName}-attendance`),
             studentId,
             studentName,
-            status: (item.status as AttendanceStatus) || null,
+            status: normalizeAttendanceStatus(item.status),
           };
         }),
       );
@@ -166,9 +199,7 @@ export default function AttendancePage() {
 
   const setStatus = (id: string, status: AttendanceStatus) => {
     setStudents((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, status: s.status === status ? null : status } : s,
-      ),
+      prev.map((s) => (s.id === id ? { ...s, status } : s)),
     );
   };
 
@@ -183,11 +214,19 @@ export default function AttendancePage() {
 
     try {
       const lessonId = await resolveLessonId();
+
+      const hasUnselected = students.some((student) => !student.status);
+      if (hasUnselected) {
+        setError("Har bir o'quvchi uchun davomat holatini tanlang");
+        setIsSaving(false);
+        return;
+      }
+
       await attendanceAPI.create({
         lessonId,
         entries: students.map((s) => ({
           studentId: s.studentId,
-          status: s.status,
+          status: toApiAttendanceStatus(s.status),
         })),
       });
       await load();
@@ -250,7 +289,7 @@ export default function AttendancePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>lessonDate (YYYY-MM-DD)</Label>
+              <Label>Dars sanasi</Label>
               <Input
                 type="date"
                 value={lessonDate}
@@ -302,45 +341,22 @@ export default function AttendancePage() {
                   <span className="font-medium">
                     {index + 1}. {student.studentName}
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    {student.studentId}
-                  </span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant={
-                      student.status === "present" ? "default" : "outline"
-                    }
-                    onClick={() => setStatus(student.id, "present")}
-                  >
-                    Keldi
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={
-                      student.status === "absent" ? "default" : "outline"
-                    }
-                    onClick={() => setStatus(student.id, "absent")}
-                  >
-                    Kelmadi
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={student.status === "late" ? "default" : "outline"}
-                    onClick={() => setStatus(student.id, "late")}
-                  >
-                    Kechikdi
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={
-                      student.status === "excused" ? "default" : "outline"
-                    }
-                    onClick={() => setStatus(student.id, "excused")}
-                  >
-                    Sababli
-                  </Button>
+                <div className="grid gap-2 md:grid-cols-4">
+                  {ATTENDANCE_OPTIONS.map((option) => (
+                    <label
+                      key={`${student.id}-${option.value}`}
+                      className="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm"
+                    >
+                      <input
+                        type="radio"
+                        name={`attendance-${student.id}`}
+                        checked={student.status === option.value}
+                        onChange={() => setStatus(student.id, option.value)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
             ))}

@@ -27,6 +27,7 @@ import {
   ApiClientError,
   getApiErrorMessage,
   teachersAPI,
+  usersAPI,
 } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 
@@ -46,6 +47,12 @@ interface TeacherForm {
   fullName: string;
   isActive: string;
   groupIdsText: string;
+}
+
+interface LoginCreateForm {
+  fullName: string;
+  username: string;
+  password: string;
 }
 
 const initialForm: TeacherForm = {
@@ -77,6 +84,18 @@ export default function TeachersPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+  const [isCreatingLogin, setIsCreatingLogin] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    username: string;
+    password: string;
+  } | null>(null);
+  const [loginForm, setLoginForm] = useState<LoginCreateForm>({
+    fullName: "",
+    username: "",
+    password: "",
+  });
+  const [loginFormError, setLoginFormError] = useState<string | null>(null);
 
   const loadTeachers = async () => {
     setIsLoading(true);
@@ -121,6 +140,72 @@ export default function TeachersPage() {
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
+  };
+
+  const generatePassword = () => {
+    const chars =
+      "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+    let password = "";
+    for (let i = 0; i < 12; i += 1) {
+      password += chars[Math.floor(Math.random() * chars.length)];
+    }
+    setLoginForm((prev) => ({ ...prev, password }));
+  };
+
+  const openCreateLogin = (teacher?: TeacherRecord) => {
+    const baseName = teacher?.fullName || "";
+    const suggestedUsername =
+      teacher?.username ||
+      baseName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ".")
+        .replace(/^\.|\.$/g, "")
+        .slice(0, 24);
+
+    setLoginForm({
+      fullName: baseName,
+      username: suggestedUsername || "teacher",
+      password: "",
+    });
+    setCreatedCredentials(null);
+    setLoginFormError(null);
+    setIsLoginDialogOpen(true);
+  };
+
+  const submitCreateLogin = async () => {
+    if (!loginForm.fullName.trim()) {
+      setLoginFormError("O'qituvchi F.I.Sh ni kiriting");
+      return;
+    }
+    if (!loginForm.username.trim()) {
+      setLoginFormError("Login kiriting");
+      return;
+    }
+    if (!loginForm.password.trim()) {
+      setLoginFormError("Parol kiriting yoki avtomatik yarating");
+      return;
+    }
+
+    setIsCreatingLogin(true);
+    setLoginFormError(null);
+    try {
+      await usersAPI.create({
+        fullName: loginForm.fullName.trim(),
+        username: loginForm.username.trim(),
+        password: loginForm.password,
+        role: "TEACHER",
+      });
+
+      setCreatedCredentials({
+        username: loginForm.username.trim(),
+        password: loginForm.password,
+      });
+      await loadTeachers();
+    } catch (err) {
+      setLoginFormError(getApiErrorMessage(err));
+    } finally {
+      setIsCreatingLogin(false);
+    }
   };
 
   const submitTeacher = async () => {
@@ -217,6 +302,9 @@ export default function TeachersPage() {
                 <DropdownMenuItem onClick={() => openEdit(teacher)}>
                   <Pencil className="mr-2 size-4" />
                   Tahrirlash
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openCreateLogin(teacher)}>
+                  Login yaratish
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -349,6 +437,98 @@ export default function TeachersPage() {
                 <CircleAlert className="mr-2 size-4 animate-spin" />
               ) : null}
               Saqlash
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isLoginDialogOpen} onOpenChange={setIsLoginDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Login yaratish</DialogTitle>
+            <DialogDescription>
+              O'qituvchi uchun login va parol yarating.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {loginFormError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
+                {loginFormError}
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label htmlFor="loginFullName">F.I.Sh</Label>
+              <Input
+                id="loginFullName"
+                value={loginForm.fullName}
+                onChange={(e) =>
+                  setLoginForm((prev) => ({
+                    ...prev,
+                    fullName: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="loginUsername">Login</Label>
+              <Input
+                id="loginUsername"
+                value={loginForm.username}
+                onChange={(e) =>
+                  setLoginForm((prev) => ({
+                    ...prev,
+                    username: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="loginPassword">Parol</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="loginPassword"
+                  value={loginForm.password}
+                  onChange={(e) =>
+                    setLoginForm((prev) => ({
+                      ...prev,
+                      password: e.target.value,
+                    }))
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={generatePassword}
+                >
+                  Auto
+                </Button>
+              </div>
+            </div>
+
+            {createdCredentials && (
+              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm">
+                <p className="font-semibold text-emerald-400">
+                  Login yaratildi
+                </p>
+                <p>Username: {createdCredentials.username}</p>
+                <p>Password: {createdCredentials.password}</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsLoginDialogOpen(false)}
+            >
+              Yopish
+            </Button>
+            <Button onClick={submitCreateLogin} disabled={isCreatingLogin}>
+              {isCreatingLogin ? "Yaratilmoqda..." : "Yaratish"}
             </Button>
           </DialogFooter>
         </DialogContent>
