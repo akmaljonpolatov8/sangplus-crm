@@ -51,7 +51,25 @@ export function handleApiError(error: unknown, label = "API error") {
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     const status = error.code === "P2002" ? 409 : 400;
-    return jsonError(status, "Database request failed", { code: error.code });
+    return jsonError(status, "Database request failed", {
+      code: error.code,
+      label,
+    });
+  }
+
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    console.error(label, error);
+    return jsonError(500, "Database connection failed", {
+      code: "PRISMA_INIT_ERROR",
+      label,
+    });
+  }
+
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return jsonError(400, "Invalid database request", {
+      code: "PRISMA_VALIDATION_ERROR",
+      label,
+    });
   }
 
   console.error(label, error);

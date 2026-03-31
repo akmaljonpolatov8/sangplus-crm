@@ -2,9 +2,14 @@
   "name": "sangplus-crm",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.9.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate && prisma migrate deploy",
     "start": "next start",
     "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
@@ -14,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed"
   },
   "dependencies": {

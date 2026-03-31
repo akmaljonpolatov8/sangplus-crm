@@ -1,7 +1,7 @@
 import { Role } from "@prisma/client";
 import type { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { handleApiError, jsonSuccess } from "@/lib/api";
+import { handleApiError, jsonError, jsonSuccess } from "@/lib/api";
 import { db } from "@/lib/db";
 import { z } from "zod";
 
@@ -112,11 +112,11 @@ export async function POST(request: NextRequest) {
     });
 
     if (!group) {
-      return handleApiError(new Error("Group not found"), "Lessons API error");
+      return jsonError(404, "Group not found");
     }
 
     if (actor.role === Role.TEACHER && group.teacherId !== actor.id) {
-      return handleApiError(new Error("Unauthorized"), "Lessons API error");
+      return jsonError(403, "You can create lessons only for your groups");
     }
 
     const existingLesson = await db.lessonSession.findFirst({
