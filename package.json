@@ -11,7 +11,6 @@
     "build": "prisma generate && next build",
     "postinstall": "prisma generate && prisma migrate deploy",
     "start": "next start",
-    "postinstall": "prisma generate",
     "seed": "tsx prisma/seed.ts",
     "import:excel": "tsx scripts/import-excel.ts",
     "import:generated": "tsx scripts/import-generated-csv.ts",
