@@ -57,7 +57,7 @@ npm run dev
 1. Add these environment variables in Vercel:
 
 ```env
-DATABASE_URL="postgresql://neondb_owner:npg_KV9keuNgsfz7@ep-cool-block-amd8kibr.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL="postge"
 AUTH_SECRET="your-long-random-secret"
 SMS_PROVIDER="generic"
 SMS_API_URL=""
