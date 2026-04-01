@@ -6,7 +6,6 @@ import { DashboardHeader } from "@/components/dashboard/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -22,7 +21,7 @@ import {
   lessonsAPI,
 } from "@/lib-frontend/api-client";
 import { useRole } from "@/lib-frontend/role-context";
-import { clearLegacyDashboardCache, toYMD } from "@/lib-frontend/utils";
+import { clearLegacyDashboardCache, cn, toYMD } from "@/lib-frontend/utils";
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused" | null;
 
@@ -46,6 +45,42 @@ const ATTENDANCE_OPTIONS: Array<{
   { value: "late", label: "Kechikdi" },
   { value: "excused", label: "Sababli" },
 ];
+
+const STATUS_LABELS: Record<Exclude<AttendanceStatus, null>, string> = {
+  present: "Keldi",
+  absent: "Kelmadi",
+  late: "Kechikdi",
+  excused: "Sababli",
+};
+
+const ATTENDANCE_PILL_STYLES: Record<
+  Exclude<AttendanceStatus, null>,
+  {
+    icon: string;
+    activeClassName: string;
+  }
+> = {
+  present: {
+    icon: "✅",
+    activeClassName:
+      "border-[#00C853] bg-[#00C853] text-white shadow-[0_0_0_1px_rgba(0,200,83,0.35),0_0_22px_rgba(0,200,83,0.45)]",
+  },
+  absent: {
+    icon: "❌",
+    activeClassName:
+      "border-[#FF3B30] bg-[#FF3B30] text-white shadow-[0_0_0_1px_rgba(255,59,48,0.35),0_0_22px_rgba(255,59,48,0.4)]",
+  },
+  late: {
+    icon: "⏰",
+    activeClassName:
+      "border-[#FFB300] bg-[#FFB300] text-white shadow-[0_0_0_1px_rgba(255,179,0,0.35),0_0_22px_rgba(255,179,0,0.35)]",
+  },
+  excused: {
+    icon: "📋",
+    activeClassName:
+      "border-[#2979FF] bg-[#2979FF] text-white shadow-[0_0_0_1px_rgba(41,121,255,0.35),0_0_22px_rgba(41,121,255,0.4)]",
+  },
+};
 
 function normalizeAttendanceStatus(value: unknown): AttendanceStatus {
   if (!value) return null;
@@ -121,7 +156,6 @@ export default function AttendancePage() {
       lessonDate: toYMD(lessonDate),
     });
 
-    // Extract from API envelope { success, data: { id, ... } }
     const createdData =
       created && typeof created === "object" && "data" in created
         ? ((created as Record<string, unknown>).data as Record<string, unknown>)
@@ -199,7 +233,9 @@ export default function AttendancePage() {
 
   const setStatus = (id: string, status: AttendanceStatus) => {
     setStudents((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status } : s)),
+      prev.map((student) =>
+        student.id === id ? { ...student, status } : student,
+      ),
     );
   };
 
@@ -224,9 +260,9 @@ export default function AttendancePage() {
 
       await attendanceAPI.create({
         lessonId,
-        entries: students.map((s) => ({
-          studentId: s.studentId,
-          status: toApiAttendanceStatus(s.status),
+        entries: students.map((student) => ({
+          studentId: student.studentId,
+          status: toApiAttendanceStatus(student.status),
         })),
       });
       await load();
@@ -239,129 +275,224 @@ export default function AttendancePage() {
 
   const stats = useMemo(
     () => ({
-      present: students.filter((s) => s.status === "present").length,
-      absent: students.filter((s) => s.status === "absent").length,
-      late: students.filter((s) => s.status === "late").length,
-      excused: students.filter((s) => s.status === "excused").length,
+      present: students.filter((student) => student.status === "present")
+        .length,
+      absent: students.filter((student) => student.status === "absent").length,
+      late: students.filter((student) => student.status === "late").length,
+      excused: students.filter((student) => student.status === "excused")
+        .length,
       total: students.length,
     }),
     [students],
   );
 
+  const completion = useMemo(() => {
+    const completed = students.filter(
+      (student) => student.status !== null,
+    ).length;
+    const total = students.length;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return { completed, total, percentage };
+  }, [students]);
+
+  const selectedGroupName =
+    groups.find((group) => group.id === groupId)?.name || "Guruh tanlanmagan";
+
+  const formattedDate = new Intl.DateTimeFormat("uz-UZ", {
+    weekday: "short",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(lessonDate));
+
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+
+    return parts.map((part) => part[0]?.toUpperCase() || "").join("") || "?";
+  };
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[#0F1117] text-slate-100">
       <DashboardHeader
         title={role === "teacher" ? "Davomat" : "Davomat boshqaruvi"}
       />
 
-      <div className="space-y-6 p-6">
+      <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 pb-28 md:px-6">
         {error && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          <div className="rounded-xl border border-[#FF3B30]/40 bg-[#FF3B30]/10 p-3 text-sm text-[#FF8A80]">
             {error}
           </div>
         )}
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
-        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Filterlar</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Guruh</Label>
-              <Select
-                value={groupId}
-                onValueChange={(value) => updateParams({ groupId: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Guruhni tanlang" />
-                </SelectTrigger>
-                <SelectContent>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name || "Noma'lum guruh"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {isLoading && <p className="text-sm text-slate-400">Yuklanmoqda...</p>}
+
+        <Card className="border-white/10 bg-[#121725] shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
+          <CardContent className="space-y-4 p-5 md:p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                  Davomat paneli
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-white md:text-2xl">
+                  {selectedGroupName}
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">{formattedDate}</p>
+                <p className="mt-2 text-xs tracking-wide text-slate-500">
+                  Belgilanganlar: {completion.completed}/{completion.total}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:w-auto">
+                <div className="rounded-xl border border-[#00C853]/35 bg-[#00C853]/10 px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[#7EF9A3]">
+                    Keldi
+                  </p>
+                  <p className="mt-1 text-xl font-semibold text-white">
+                    {stats.present}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#FF3B30]/35 bg-[#FF3B30]/10 px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[#FF9C95]">
+                    Kelmadi
+                  </p>
+                  <p className="mt-1 text-xl font-semibold text-white">
+                    {stats.absent}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Dars sanasi</Label>
-              <Input
-                type="date"
-                value={lessonDate}
-                onChange={(e) => updateParams({ lessonDate: e.target.value })}
-              />
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>To&apos;ldirish jarayoni</span>
+                <span>{completion.percentage}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[#0B0F1A]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#00C853] via-[#00E676] to-[#7EF9A3] transition-all duration-200 ease-in-out"
+                  style={{ width: `${completion.percentage}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
+                  Guruh
+                </p>
+                <Select
+                  value={groupId}
+                  onValueChange={(value) => updateParams({ groupId: value })}
+                >
+                  <SelectTrigger className="h-11 border-white/12 bg-[#0B0F1A] text-slate-100 transition-all duration-200 ease-in-out hover:border-white/30">
+                    <SelectValue placeholder="Guruhni tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name || "Noma'lum guruh"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
+                  Dars sanasi
+                </p>
+                <Input
+                  type="date"
+                  value={lessonDate}
+                  className="h-11 border-white/12 bg-[#0B0F1A] text-slate-100 transition-all duration-200 ease-in-out hover:border-white/30"
+                  onChange={(event) =>
+                    updateParams({ lessonDate: event.target.value })
+                  }
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <Card>
-            <CardContent className="p-3 text-sm">
-              Jami: {stats.total}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-sm text-success">
-              Keldi: {stats.present}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-sm text-destructive">
-              Kelmadi: {stats.absent}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-sm">
-              Kechikdi: {stats.late}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-sm">
-              Sababli: {stats.excused}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>O&apos;quvchilar ro&apos;yxati</CardTitle>
-            <Button onClick={saveAttendance} disabled={isSaving || isLoading}>
-              {isSaving ? "Saqlanmoqda..." : "Davomatni saqlash"}
-            </Button>
+        <Card className="border-white/10 bg-[#121725]">
+          <CardHeader>
+            <CardTitle className="text-lg text-white">
+              O&apos;quvchilar ro&apos;yxati
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 md:space-y-4">
             {students.map((student, index) => (
-              <div key={student.id} className="rounded-lg border p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="font-medium">
-                    {index + 1}. {student.studentName}
-                  </span>
-                </div>
-                <div className="grid gap-2 md:grid-cols-4">
-                  {ATTENDANCE_OPTIONS.map((option) => (
-                    <label
-                      key={`${student.id}-${option.value}`}
-                      className="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm"
-                    >
-                      <input
-                        type="radio"
-                        name={`attendance-${student.id}`}
-                        checked={student.status === option.value}
-                        onChange={() => setStatus(student.id, option.value)}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
+              <div
+                key={student.id}
+                className="rounded-2xl border border-white/10 bg-[#0B0F1A] p-4 transition-all duration-200 ease-in-out hover:border-white/20"
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[#171D2B] text-sm font-semibold text-slate-100">
+                      {getInitials(student.studentName)}
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">#{index + 1}</p>
+                      <p className="text-base font-medium text-white">
+                        {student.studentName}
+                      </p>
+                      {student.status && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          Holati: {STATUS_LABELS[student.status]}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                    {ATTENDANCE_OPTIONS.map((option) => {
+                      const isActive = student.status === option.value;
+                      const optionTheme = ATTENDANCE_PILL_STYLES[option.value];
+
+                      return (
+                        <button
+                          key={`${student.id}-${option.value}`}
+                          type="button"
+                          onClick={() => setStatus(student.id, option.value)}
+                          className={cn(
+                            "inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-all duration-200 ease-in-out",
+                            isActive
+                              ? optionTheme.activeClassName
+                              : "border-white/14 bg-transparent text-slate-400 hover:border-white/35 hover:text-slate-200",
+                          )}
+                          aria-pressed={isActive}
+                        >
+                          <span>{optionTheme.icon}</span>
+                          <span>{option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
+
+        <div className="sticky bottom-0 z-30">
+          <div className="rounded-2xl border border-[#00C853]/25 bg-[#0F1117]/90 p-3 backdrop-blur-md">
+            <Button
+              onClick={saveAttendance}
+              disabled={isSaving || isLoading}
+              className="h-12 w-full rounded-xl bg-gradient-to-r from-[#00C853] to-[#00E676] text-base font-semibold text-white shadow-[0_12px_32px_rgba(0,200,83,0.34)] transition-all duration-200 ease-in-out hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSaving
+                ? "Saqlanmoqda..."
+                : `Davomatni saqlash (${stats.total})`}
+            </Button>
+            <p className="mt-2 text-center text-xs text-slate-400">
+              {completion.completed === completion.total && completion.total > 0
+                ? "Hammasi tayyor - saqlash mumkin"
+                : "Barcha o'quvchilar uchun holat tanlang"}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
