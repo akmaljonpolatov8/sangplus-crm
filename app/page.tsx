@@ -100,7 +100,11 @@ export default function LoginPage() {
 
       // Store role and username from backend response
       setRole(apiRole);
-      setUserName(response?.user?.username || formData.username.trim());
+      setUserName(
+        response?.user?.fullName ||
+          response?.user?.username ||
+          formData.username.trim(),
+      );
 
       // Clear form
       setFormData({ username: "", password: "" });

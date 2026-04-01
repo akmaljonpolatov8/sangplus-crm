@@ -286,6 +286,14 @@ export interface LoginResponse {
   };
 }
 
+export interface CurrentUserResponse {
+  id: string;
+  username: string;
+  fullName: string;
+  role: string;
+  isActive: boolean;
+}
+
 export const authAPI = {
   login: (username: string, password: string, role: string) =>
     apiPost<LoginResponse>("/api/auth/login", {
@@ -294,7 +302,19 @@ export const authAPI = {
       role,
     }),
 
-  getCurrentUser: () => apiGet("/api/auth/me"),
+  getCurrentUser: () => apiGet<CurrentUserResponse>("/api/auth/me"),
+  updateProfile: (fullName: string) =>
+    apiPatch<CurrentUserResponse>("/api/auth/me", {
+      fullName,
+    }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiPost<{ id: string; passwordChanged: boolean }>(
+      "/api/auth/change-password",
+      {
+        currentPassword,
+        newPassword,
+      },
+    ),
 };
 
 export const studentsAPI = {

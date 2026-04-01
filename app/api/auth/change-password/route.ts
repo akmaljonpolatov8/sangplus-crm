@@ -2,13 +2,14 @@ import { requireUser } from "@/lib/auth";
 import { handleApiError, jsonError, jsonSuccess, parseJson } from "@/lib/api";
 import { db } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { strongPasswordSchema } from "@/lib/validation";
 import { z } from "zod";
 
 export const runtime = "nodejs";
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(6).max(100),
-  newPassword: z.string().min(6).max(100),
+  newPassword: strongPasswordSchema,
 });
 
 export async function POST(request: Request) {
