@@ -39,7 +39,10 @@ import {
   teachersAPI,
 } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
-import { clearLegacyDashboardCache, formatCurrency } from "@/lib-frontend/utils";
+import {
+  clearLegacyDashboardCache,
+  formatCurrency,
+} from "@/lib-frontend/utils";
 
 interface GroupRecord {
   id: string;
@@ -52,6 +55,10 @@ interface GroupRecord {
   teacherId?: string;
   teacher?: { id?: string; fullName?: string };
   isActive?: boolean;
+  _count?: {
+    students?: number;
+    lessons?: number;
+  };
 }
 
 interface TeacherItem {
@@ -172,7 +179,11 @@ export default function GroupsPage() {
       errors.scheduleDays = "Kamida bitta dars kunini tanlang";
 
     const monthlyFee = Number(formData.monthlyFee);
-    if (!formData.monthlyFee.trim() || Number.isNaN(monthlyFee) || monthlyFee <= 0) {
+    if (
+      !formData.monthlyFee.trim() ||
+      Number.isNaN(monthlyFee) ||
+      monthlyFee <= 0
+    ) {
       errors.monthlyFee = "Oylik to'lov to'g'ri kiritilishi shart";
     }
 
@@ -226,7 +237,13 @@ export default function GroupsPage() {
         key: "name",
         header: "Guruh",
         render: (group: GroupRecord) => (
-          <span className="font-medium">{group.name || "-"}</span>
+          <button
+            type="button"
+            className="font-medium text-left text-foreground transition-colors duration-200 hover:text-primary"
+            onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+          >
+            {group.name || "-"}
+          </button>
         ),
       },
       {
@@ -264,6 +281,15 @@ export default function GroupsPage() {
         ),
       },
       {
+        key: "studentCount",
+        header: "O'quvchilar",
+        render: (group: GroupRecord) => (
+          <span className="text-muted-foreground">
+            {group._count?.students ?? 0}
+          </span>
+        ),
+      },
+      {
         key: "isActive",
         header: "Holati",
         render: (group: GroupRecord) => (
@@ -293,7 +319,7 @@ export default function GroupsPage() {
         ),
       },
     ],
-    [],
+    [router],
   );
 
   if (!canAccess) return null;
@@ -325,9 +351,11 @@ export default function GroupsPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>{formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}</DialogTitle>
+            <DialogTitle>
+              {formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}
+            </DialogTitle>
             <DialogDescription>
-              Barcha maydonlarni to'g'ri to'ldiring va saqlang.
+              Barcha maydonlarni to&apos;g&apos;ri to&apos;ldiring va saqlang.
             </DialogDescription>
           </DialogHeader>
 
@@ -371,14 +399,19 @@ export default function GroupsPage() {
                 {HAFTA_KUNLARI.map((day) => {
                   const checked = formData.scheduleDays.includes(day);
                   return (
-                    <label key={day} className="flex items-center gap-2 rounded border px-3 py-2 text-sm">
+                    <label
+                      key={day}
+                      className="flex items-center gap-2 rounded border px-3 py-2 text-sm"
+                    >
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(nextChecked) => {
                           setFormData((prev) => {
                             const nextDays = nextChecked
                               ? [...prev.scheduleDays, day]
-                              : prev.scheduleDays.filter((item) => item !== day);
+                              : prev.scheduleDays.filter(
+                                  (item) => item !== day,
+                                );
                             return { ...prev, scheduleDays: nextDays };
                           });
                         }}
@@ -389,7 +422,9 @@ export default function GroupsPage() {
                 })}
               </div>
               {fieldErrors.scheduleDays && (
-                <p className="text-xs text-destructive">{fieldErrors.scheduleDays}</p>
+                <p className="text-xs text-destructive">
+                  {fieldErrors.scheduleDays}
+                </p>
               )}
             </div>
 
@@ -401,7 +436,10 @@ export default function GroupsPage() {
                   type="time"
                   value={formData.startTime}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, startTime: e.target.value }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      startTime: e.target.value,
+                    }))
                   }
                 />
               </div>
@@ -412,30 +450,38 @@ export default function GroupsPage() {
                   type="time"
                   value={formData.endTime}
                   onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, endTime: e.target.value }))
+                    setFormData((prev) => ({
+                      ...prev,
+                      endTime: e.target.value,
+                    }))
                   }
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="monthlyFee">Oylik to'lov</Label>
+              <Label htmlFor="monthlyFee">Oylik to&apos;lov</Label>
               <Input
                 id="monthlyFee"
                 inputMode="decimal"
                 placeholder="Masalan: 400000"
                 value={formData.monthlyFee}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, monthlyFee: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    monthlyFee: e.target.value,
+                  }))
                 }
               />
               {fieldErrors.monthlyFee && (
-                <p className="text-xs text-destructive">{fieldErrors.monthlyFee}</p>
+                <p className="text-xs text-destructive">
+                  {fieldErrors.monthlyFee}
+                </p>
               )}
             </div>
 
             <div className="space-y-1">
-              <Label>O'qituvchi</Label>
+              <Label>O&apos;qituvchi</Label>
               <Select
                 value={formData.teacherId}
                 onValueChange={(value) =>
@@ -454,7 +500,9 @@ export default function GroupsPage() {
                 </SelectContent>
               </Select>
               {fieldErrors.teacherId && (
-                <p className="text-xs text-destructive">{fieldErrors.teacherId}</p>
+                <p className="text-xs text-destructive">
+                  {fieldErrors.teacherId}
+                </p>
               )}
             </div>
 
@@ -463,7 +511,10 @@ export default function GroupsPage() {
               <Select
                 value={formData.isActive ? "true" : "false"}
                 onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, isActive: value === "true" }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    isActive: value === "true",
+                  }))
                 }
               >
                 <SelectTrigger>
@@ -482,7 +533,9 @@ export default function GroupsPage() {
               Bekor qilish
             </Button>
             <Button onClick={submitGroup} disabled={isSaving}>
-              {isSaving ? <CircleAlert className="mr-2 size-4 animate-spin" /> : null}
+              {isSaving ? (
+                <CircleAlert className="mr-2 size-4 animate-spin" />
+              ) : null}
               Saqlash
             </Button>
           </DialogFooter>

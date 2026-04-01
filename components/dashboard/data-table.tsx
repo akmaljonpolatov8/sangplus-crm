@@ -1,8 +1,9 @@
-"use client"
+"use client";
 
-import { Search, Filter, Plus } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { useMemo, useState } from "react";
+import { Search, Filter, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -10,25 +11,42 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { cn } from "@/lib-frontend/utils"
+} from "@/components/ui/table";
+import { cn } from "@/lib-frontend/utils";
 
 interface Column<T> {
-  key: keyof T | string
-  header: string
-  render?: (item: T) => React.ReactNode
-  className?: string
+  key: keyof T | string;
+  header: string;
+  render?: (item: T) => React.ReactNode;
+  className?: string;
 }
 
 interface DataTableProps<T> {
-  data: T[]
-  columns: Column<T>[]
-  searchPlaceholder?: string
-  addButtonLabel?: string
-  onAddClick?: () => void
-  onSearch?: (query: string) => void
-  showFilters?: boolean
-  className?: string
+  data: T[];
+  columns: Column<T>[];
+  searchPlaceholder?: string;
+  addButtonLabel?: string;
+  onAddClick?: () => void;
+  onSearch?: (query: string) => void;
+  showFilters?: boolean;
+  className?: string;
+}
+
+function toSearchText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => toSearchText(item)).join(" ");
+  }
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .map((item) => toSearchText(item))
+      .join(" ");
+  }
+  return "";
 }
 
 export function DataTable<T extends { id: string | number }>({
@@ -41,6 +59,29 @@ export function DataTable<T extends { id: string | number }>({
   showFilters = true,
   className,
 }: DataTableProps<T>) {
+  const [query, setQuery] = useState("");
+
+  const filteredData = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return data;
+
+    return data.filter((item) => {
+      const tableText = columns
+        .map((column) => {
+          const key = column.key as keyof T;
+          const hasOwnKey = Object.prototype.hasOwnProperty.call(
+            item as Record<string, unknown>,
+            String(column.key),
+          );
+          return hasOwnKey ? toSearchText(item[key]) : toSearchText(item);
+        })
+        .join(" ")
+        .toLowerCase();
+
+      return tableText.includes(normalizedQuery);
+    });
+  }, [columns, data, query]);
+
   return (
     <div className={cn("space-y-4", className)}>
       {/* Toolbar */}
@@ -51,7 +92,12 @@ export function DataTable<T extends { id: string | number }>({
             <Input
               placeholder={searchPlaceholder}
               className="bg-secondary/50 pl-9 border-transparent focus-visible:border-border"
-              onChange={(e) => onSearch?.(e.target.value)}
+              value={query}
+              onChange={(e) => {
+                const nextQuery = e.target.value;
+                setQuery(nextQuery);
+                onSearch?.(nextQuery);
+              }}
             />
           </div>
           {showFilters && (
@@ -86,7 +132,7 @@ export function DataTable<T extends { id: string | number }>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length === 0 ? (
+            {filteredData.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
@@ -96,7 +142,7 @@ export function DataTable<T extends { id: string | number }>({
                 </TableCell>
               </TableRow>
             ) : (
-              data.map((item) => (
+              filteredData.map((item) => (
                 <TableRow key={item.id} className="border-border">
                   {columns.map((column) => (
                     <TableCell
@@ -115,5 +161,5 @@ export function DataTable<T extends { id: string | number }>({
         </Table>
       </div>
     </div>
-  )
+  );
 }

@@ -30,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
+import { MoreHorizontal, Pencil, CircleAlert, Trash2, X } from "lucide-react";
 import {
   ApiClientError,
   extractList,
@@ -123,6 +123,7 @@ export default function StudentsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadStudents = async () => {
     setIsLoading(true);
@@ -231,6 +232,28 @@ export default function StudentsPage() {
       setFormError(getApiErrorMessage(err));
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const deleteStudent = async () => {
+    if (!formData.id) return;
+    const confirmed = window.confirm(
+      "Ushbu o'quvchini o'chirishni tasdiqlaysizmi?",
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    setFormError(null);
+
+    try {
+      await studentsAPI.delete(formData.id);
+      setIsDialogOpen(false);
+      setFormData(initialForm);
+      await loadStudents();
+    } catch (err) {
+      setFormError(getApiErrorMessage(err));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -485,6 +508,33 @@ export default function StudentsPage() {
                   Guruhlar mavjud emas
                 </p>
               )}
+              {formData.groupIds.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {formData.groupIds.map((groupId) => {
+                    const groupName =
+                      groups.find((group) => group.id === groupId)?.name ||
+                      "Noma'lum guruh";
+                    return (
+                      <button
+                        key={groupId}
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-1 text-xs text-secondary-foreground transition-colors duration-200 hover:bg-secondary/80"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            groupIds: prev.groupIds.filter(
+                              (id) => id !== groupId,
+                            ),
+                          }))
+                        }
+                      >
+                        <span>{groupName}</span>
+                        <X className="size-3" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {fieldErrors.groupIds && (
                 <p className="text-xs text-destructive">
                   {fieldErrors.groupIds}
@@ -494,10 +544,28 @@ export default function StudentsPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            {formData.id ? (
+              <Button
+                variant="destructive"
+                onClick={deleteStudent}
+                disabled={isDeleting || isSaving}
+              >
+                {isDeleting ? (
+                  <CircleAlert className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 size-4" />
+                )}
+                O&apos;chirish
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              onClick={() => setIsDialogOpen(false)}
+              disabled={isDeleting || isSaving}
+            >
               Bekor qilish
             </Button>
-            <Button onClick={submitStudent} disabled={isSaving}>
+            <Button onClick={submitStudent} disabled={isSaving || isDeleting}>
               {isSaving ? (
                 <CircleAlert className="mr-2 size-4 animate-spin" />
               ) : null}

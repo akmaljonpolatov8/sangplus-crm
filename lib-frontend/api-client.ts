@@ -318,7 +318,14 @@ export const authAPI = {
 };
 
 export const studentsAPI = {
-  list: () => apiGet("/api/students"),
+  list: (params?: { search?: string; status?: string; groupId?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.search) search.set("search", params.search);
+    if (params?.status) search.set("status", params.status);
+    if (params?.groupId) search.set("groupId", params.groupId);
+    const query = search.toString();
+    return apiGet(`/api/students${query ? `?${query}` : ""}`);
+  },
   get: (id: string) => apiGet(`/api/students/${id}`),
   create: (data: Record<string, unknown>) => apiPost("/api/students", data),
   update: (id: string, data: Record<string, unknown>) =>
