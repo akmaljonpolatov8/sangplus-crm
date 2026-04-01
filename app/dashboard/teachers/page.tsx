@@ -6,8 +6,16 @@ import { DashboardHeader } from "@/components/dashboard/header";
 import { DataTable } from "@/components/dashboard/data-table";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +35,7 @@ import {
   ApiClientError,
   extractList,
   getApiErrorMessage,
+  groupsAPI,
   teachersAPI,
   usersAPI,
 } from "@/lib-frontend/api-client";
@@ -41,13 +50,20 @@ interface TeacherRecord {
   groups?: Array<{ id: string; name?: string }>;
 }
 
+interface GroupRecord {
+  id: string;
+  name?: string;
+  subject?: string;
+  isActive?: boolean;
+}
+
 interface TeacherForm {
   id?: string;
   username: string;
   password: string;
   fullName: string;
-  isActive: string;
-  groupIdsText: string;
+  isActive: boolean;
+  groupIds: string[];
 }
 
 interface LoginCreateForm {
@@ -60,16 +76,9 @@ const initialForm: TeacherForm = {
   username: "",
   password: "",
   fullName: "",
-  isActive: "true",
-  groupIdsText: "",
+  isActive: true,
+  groupIds: [],
 };
-
-function parseGroupIds(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
 
 export default function TeachersPage() {
   const router = useRouter();
@@ -77,7 +86,9 @@ export default function TeachersPage() {
   const canAccess = hasAccess(role, "teachers");
 
   const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
+  const [groups, setGroups] = useState<GroupRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -111,6 +122,18 @@ export default function TeachersPage() {
     }
   };
 
+  const loadGroups = async () => {
+    setIsLoadingGroups(true);
+    try {
+      const data = await groupsAPI.list();
+      setGroups(extractList<GroupRecord>(data, ["groups"]));
+    } catch (err) {
+      console.error("Failed to load groups:", err);
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  };
+
   useEffect(() => {
     if (!canAccess) {
       router.replace("/dashboard/attendance");
@@ -120,27 +143,27 @@ export default function TeachersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
 
-  const openCreate = () => {
+  const openCreate = async () => {
     setFormData(initialForm);
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
+    await loadGroups();
   };
 
-  const openEdit = (teacher: TeacherRecord) => {
+  const openEdit = async (teacher: TeacherRecord) => {
     setFormData({
       id: teacher.id,
       username: teacher.username || "",
       password: "",
       fullName: teacher.fullName || "",
-      isActive: String(Boolean(teacher.isActive)),
-      groupIdsText:
-        teacher.groupIds?.join(", ") ||
-        (teacher.groups || []).map((g) => g.id).join(", "),
+      isActive: teacher.isActive ?? true,
+      groupIds: teacher.groupIds || (teacher.groups || []).map((g) => g.id),
     });
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
+    await loadGroups();
   };
 
   const generatePassword = () => {
@@ -218,8 +241,8 @@ export default function TeachersPage() {
       const payload: Record<string, unknown> = {
         username: formData.username.trim(),
         fullName: formData.fullName.trim(),
-        isActive: formData.isActive === "true",
-        groupIds: parseGroupIds(formData.groupIdsText),
+        isActive: formData.isActive,
+        groupIds: formData.groupIds,
       };
 
       if (formData.password.trim()) {
@@ -365,6 +388,7 @@ export default function TeachersPage() {
               <Label htmlFor="username">Username</Label>
               <Input
                 id="username"
+                placeholder="Logini kiriting"
                 value={formData.username}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, username: e.target.value }))
@@ -374,11 +398,16 @@ export default function TeachersPage() {
 
             <div className="space-y-1">
               <Label htmlFor="password">
-                Password {formData.id ? "(ixtiyoriy)" : ""}
+                Parol {formData.id ? "(ixtiyoriy)" : ""}
               </Label>
               <Input
                 id="password"
                 type="password"
+                placeholder={
+                  formData.id
+                    ? "Yeni parol kiriting / bo'sh qoldiring"
+                    : "Parolni kiriting"
+                }
                 value={formData.password}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, password: e.target.value }))
@@ -387,9 +416,10 @@ export default function TeachersPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="fullName">Full name</Label>
+              <Label htmlFor="fullName">To'liq ismi</Label>
               <Input
                 id="fullName"
+                placeholder="O'qituvchining to'liq ismini kiriting"
                 value={formData.fullName}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, fullName: e.target.value }))
@@ -398,28 +428,60 @@ export default function TeachersPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="isActive">Is active (true/false)</Label>
-              <Input
-                id="isActive"
-                value={formData.isActive}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, isActive: e.target.value }))
-                }
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="groupIdsText">Group IDs (vergul bilan)</Label>
-              <Input
-                id="groupIdsText"
-                value={formData.groupIdsText}
-                onChange={(e) =>
+              <Label>Holati</Label>
+              <Select
+                value={formData.isActive ? "true" : "false"}
+                onValueChange={(value) =>
                   setFormData((prev) => ({
                     ...prev,
-                    groupIdsText: e.target.value,
+                    isActive: value === "true",
                   }))
                 }
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Holati tanlang" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Faol</SelectItem>
+                  <SelectItem value="false">Nofaol</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Guruhlar {isLoadingGroups && "(yuklanmoqda...)"}</Label>
+              {groups.length > 0 ? (
+                <div className="max-h-40 space-y-2 overflow-y-auto border rounded p-2">
+                  {groups.map((group) => {
+                    const isSelected = formData.groupIds.includes(group.id);
+                    return (
+                      <label
+                        key={group.id}
+                        className="flex items-center gap-2 rounded border px-3 py-2 text-sm cursor-pointer hover:bg-muted"
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              groupIds: checked
+                                ? [...prev.groupIds, group.id]
+                                : prev.groupIds.filter((id) => id !== group.id),
+                            }));
+                          }}
+                        />
+                        <span>{group.name || group.id}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : isLoadingGroups ? (
+                <p className="text-xs text-muted-foreground">Yuklanmoqda...</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Guruhlar mavjud emas
+                </p>
+              )}
             </div>
 
             {Object.keys(fieldErrors).map((key) => (

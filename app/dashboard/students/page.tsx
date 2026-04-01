@@ -6,8 +6,16 @@ import { DashboardHeader } from "@/components/dashboard/header";
 import { DataTable } from "@/components/dashboard/data-table";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +35,7 @@ import {
   ApiClientError,
   extractList,
   getApiErrorMessage,
+  groupsAPI,
   studentsAPI,
 } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
@@ -53,6 +62,13 @@ interface RawStudentRecord extends Omit<StudentRecord, "groups"> {
   }>;
 }
 
+interface GroupRecord {
+  id: string;
+  name?: string;
+  subject?: string;
+  isActive?: boolean;
+}
+
 interface StudentForm {
   id?: string;
   fullName: string;
@@ -61,7 +77,7 @@ interface StudentForm {
   parentName: string;
   notes: string;
   status: "ACTIVE" | "INACTIVE" | "GRADUATED";
-  groupIdsText: string;
+  groupIds: string[];
 }
 
 const initialForm: StudentForm = {
@@ -71,18 +87,8 @@ const initialForm: StudentForm = {
   parentName: "",
   notes: "",
   status: "ACTIVE",
-  groupIdsText: "",
+  groupIds: [],
 };
-
-function normalizeStudentStatus(
-  value?: string,
-): "ACTIVE" | "INACTIVE" | "GRADUATED" {
-  const upper = String(value || "ACTIVE").toUpperCase();
-  if (upper === "ACTIVE" || upper === "INACTIVE" || upper === "GRADUATED") {
-    return upper;
-  }
-  return "ACTIVE";
-}
 
 function studentStatusToBadge(
   value?: "ACTIVE" | "INACTIVE" | "GRADUATED",
@@ -101,20 +107,15 @@ function splitFullName(value: string): { firstName: string; lastName: string } {
   return { firstName, lastName };
 }
 
-function toGroupIds(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 export default function StudentsPage() {
   const router = useRouter();
   const { role } = useRole();
   const canAccess = hasAccess(role, "students");
 
   const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [groups, setGroups] = useState<GroupRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -145,6 +146,18 @@ export default function StudentsPage() {
     }
   };
 
+  const loadGroups = async () => {
+    setIsLoadingGroups(true);
+    try {
+      const data = await groupsAPI.list();
+      setGroups(extractList<GroupRecord>(data, ["groups"]));
+    } catch (err) {
+      console.error("Failed to load groups:", err);
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  };
+
   useEffect(() => {
     if (!canAccess) {
       router.replace("/dashboard/attendance");
@@ -155,14 +168,15 @@ export default function StudentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
 
-  const openCreate = () => {
+  const openCreate = async () => {
     setFormData(initialForm);
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
+    await loadGroups();
   };
 
-  const openEdit = (student: StudentRecord) => {
+  const openEdit = async (student: StudentRecord) => {
     setFormData({
       id: student.id,
       fullName: `${student.firstName || ""} ${student.lastName || ""}`.trim(),
@@ -170,12 +184,13 @@ export default function StudentsPage() {
       parentPhone: student.parentPhone || "",
       parentName: student.parentName || "",
       notes: student.notes || "",
-      status: normalizeStudentStatus(student.status),
-      groupIdsText: (student.groups || []).map((g) => g.id).join(", "),
+      status: student.status || "ACTIVE",
+      groupIds: (student.groups || []).map((g) => g.id),
     });
     setFieldErrors({});
     setFormError(null);
     setIsDialogOpen(true);
+    await loadGroups();
   };
 
   const submitStudent = async () => {
@@ -194,7 +209,7 @@ export default function StudentsPage() {
         parentName: formData.parentName.trim() || null,
         notes: formData.notes.trim() || null,
         status: formData.status,
-        groupIds: toGroupIds(formData.groupIdsText),
+        groupIds: formData.groupIds,
       };
 
       if (formData.id) {
@@ -339,6 +354,7 @@ export default function StudentsPage() {
               <Label htmlFor="fullName">Ism familiya</Label>
               <Input
                 id="fullName"
+                placeholder="Ismi va familiyasi"
                 value={formData.fullName}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, fullName: e.target.value }))
@@ -360,6 +376,7 @@ export default function StudentsPage() {
               <Label htmlFor="phone">Telefon</Label>
               <Input
                 id="phone"
+                placeholder="+998XXXXXXXXX"
                 value={formData.phone}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, phone: e.target.value }))
@@ -374,6 +391,7 @@ export default function StudentsPage() {
               <Label htmlFor="parentPhone">Ota-ona telefoni</Label>
               <Input
                 id="parentPhone"
+                placeholder="+998XXXXXXXXX (ixtiyoriy)"
                 value={formData.parentPhone}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -388,6 +406,7 @@ export default function StudentsPage() {
               <Label htmlFor="parentName">Ota-ona ismi</Label>
               <Input
                 id="parentName"
+                placeholder="(ixtiyoriy)"
                 value={formData.parentName}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -402,6 +421,7 @@ export default function StudentsPage() {
               <Label htmlFor="notes">Izoh</Label>
               <Input
                 id="notes"
+                placeholder="(ixtiyoriy)"
                 value={formData.notes}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, notes: e.target.value }))
@@ -410,31 +430,61 @@ export default function StudentsPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="status">Status</Label>
-              <Input
-                id="status"
+              <Label>Status</Label>
+              <Select
                 value={formData.status}
-                onChange={(e) =>
+                onValueChange={(value) =>
                   setFormData((prev) => ({
                     ...prev,
-                    status: normalizeStudentStatus(e.target.value),
+                    status: value as "ACTIVE" | "INACTIVE" | "GRADUATED",
                   }))
                 }
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Statusni tanlang" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Faol</SelectItem>
+                  <SelectItem value="INACTIVE">Nofaol</SelectItem>
+                  <SelectItem value="GRADUATED">Bitirgan</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="groupIdsText">Group IDs (vergul bilan)</Label>
-              <Input
-                id="groupIdsText"
-                value={formData.groupIdsText}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    groupIdsText: e.target.value,
-                  }))
-                }
-              />
+            <div className="space-y-2">
+              <Label>Guruhlar {isLoadingGroups && "(yuklanmoqda...)"}</Label>
+              {groups.length > 0 ? (
+                <div className="max-h-40 space-y-2 overflow-y-auto border rounded p-2">
+                  {groups.map((group) => {
+                    const isSelected = formData.groupIds.includes(group.id);
+                    return (
+                      <label
+                        key={group.id}
+                        className="flex items-center gap-2 rounded border px-3 py-2 text-sm cursor-pointer hover:bg-muted"
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              groupIds: checked
+                                ? [...prev.groupIds, group.id]
+                                : prev.groupIds.filter((id) => id !== group.id),
+                            }));
+                          }}
+                        />
+                        <span>{group.name || group.id}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : isLoadingGroups ? (
+                <p className="text-xs text-muted-foreground">Yuklanmoqda...</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Guruhlar mavjud emas
+                </p>
+              )}
               {fieldErrors.groupIds && (
                 <p className="text-xs text-destructive">
                   {fieldErrors.groupIds}
