@@ -30,6 +30,11 @@ const saveAttendanceSchema = z.object({
   entries: z.array(attendanceEntrySchema).min(1),
 });
 
+function parseYmdToUtcDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request, [
@@ -48,7 +53,9 @@ export async function GET(request: NextRequest) {
     }
 
     let groupId = query.groupId;
-    let lessonDate = query.lessonDate ? new Date(query.lessonDate) : undefined;
+    let lessonDate = query.lessonDate
+      ? parseYmdToUtcDate(query.lessonDate)
+      : undefined;
 
     if (query.lessonId) {
       const lesson = await db.lessonSession.findUnique({

@@ -25,6 +25,7 @@ import {
 import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
 import {
   ApiClientError,
+  extractList,
   getApiErrorMessage,
   teachersAPI,
   usersAPI,
@@ -102,7 +103,7 @@ export default function TeachersPage() {
     setError(null);
     try {
       const data = await teachersAPI.list();
-      setTeachers(Array.isArray(data) ? (data as TeacherRecord[]) : []);
+      setTeachers(extractList<TeacherRecord>(data, ["teachers"]));
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -447,7 +448,7 @@ export default function TeachersPage() {
           <DialogHeader>
             <DialogTitle>Login yaratish</DialogTitle>
             <DialogDescription>
-              O'qituvchi uchun login va parol yarating.
+              O&apos;qituvchi uchun login va parol yarating.
             </DialogDescription>
           </DialogHeader>
 

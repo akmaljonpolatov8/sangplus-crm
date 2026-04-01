@@ -89,7 +89,9 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
     const hasLower = /[a-z]/.test(newPassword);
     const hasNumber = /\d/.test(newPassword);
     const hasSpecial = /[^A-Za-z\d]/.test(newPassword);
-    return newPassword.length >= 8 && hasUpper && hasLower && hasNumber && hasSpecial;
+    return (
+      newPassword.length >= 8 && hasUpper && hasLower && hasNumber && hasSpecial
+    );
   }, [newPassword]);
 
   async function handleSaveProfile() {
@@ -241,7 +243,8 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
           <DialogHeader>
             <DialogTitle>Profil sozlamalari</DialogTitle>
             <DialogDescription>
-              Ismingizni yangilang. Bu nom panelning yuqori qismida ko&apos;rinadi.
+              Ismingizni yangilang. Bu nom panelning yuqori qismida
+              ko&apos;rinadi.
             </DialogDescription>
           </DialogHeader>
 
@@ -326,7 +329,8 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Kamida 8 belgi, katta va kichik harf, raqam hamda maxsus belgi bo&apos;lishi kerak.
+              Kamida 8 belgi, katta va kichik harf, raqam hamda maxsus belgi
+              bo&apos;lishi kerak.
             </p>
           </div>
 

@@ -44,6 +44,15 @@ interface StudentRecord {
   groups?: Array<{ id: string; name?: string }>;
 }
 
+interface RawStudentRecord extends Omit<StudentRecord, "groups"> {
+  groups?: Array<{
+    id?: string;
+    groupId?: string;
+    name?: string;
+    group?: { name?: string };
+  }>;
+}
+
 interface StudentForm {
   id?: string;
   fullName: string;
@@ -119,7 +128,16 @@ export default function StudentsPage() {
     setError(null);
     try {
       const data = await studentsAPI.list();
-      setStudents(extractList<StudentRecord>(data, ["students"]));
+      const list = extractList<RawStudentRecord>(data, ["students"]);
+      setStudents(
+        list.map((student) => ({
+          ...student,
+          groups: (student.groups || []).map((group) => ({
+            id: String(group.id ?? group.groupId ?? ""),
+            name: group.name ?? group.group?.name,
+          })),
+        })),
+      );
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {

@@ -18,7 +18,10 @@ export async function POST(request: Request) {
     const body = await parseJson(request, changePasswordSchema);
 
     if (body.currentPassword === body.newPassword) {
-      return jsonError(400, "New password must be different from current password");
+      return jsonError(
+        400,
+        "New password must be different from current password",
+      );
     }
 
     const user = await db.user.findUnique({

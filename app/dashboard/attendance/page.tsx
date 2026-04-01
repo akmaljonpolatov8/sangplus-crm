@@ -122,6 +122,7 @@ export default function AttendancePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const groupId = searchParams.get("groupId") || "";
   const lessonDate = toYMD(searchParams.get("lessonDate")) || toYMD(new Date());
@@ -145,7 +146,7 @@ export default function AttendancePage() {
       groupId,
       lessonDate: toYMD(lessonDate),
     });
-    const lessonList = Array.isArray(lessons) ? (lessons as LessonItem[]) : [];
+    const lessonList = extractList<LessonItem>(lessons, ["lessons"]);
 
     const matched =
       lessonList.find((item) => item.groupId === groupId) || lessonList[0];
@@ -247,6 +248,7 @@ export default function AttendancePage() {
 
     setIsSaving(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       const lessonId = await resolveLessonId();
@@ -266,6 +268,7 @@ export default function AttendancePage() {
         })),
       });
       await load();
+      setSuccessMessage("Davomat muvaffaqiyatli saqlandi");
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -322,6 +325,12 @@ export default function AttendancePage() {
         {error && (
           <div className="rounded-xl border border-[#FF3B30]/40 bg-[#FF3B30]/10 p-3 text-sm text-[#FF8A80]">
             {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="rounded-xl border border-[#00C853]/40 bg-[#00C853]/10 p-3 text-sm text-[#7EF9A3]">
+            {successMessage}
           </div>
         )}
 

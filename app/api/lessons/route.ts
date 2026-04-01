@@ -22,6 +22,11 @@ const createLessonSchema = z.object({
   lessonDate: z.string().date(),
 });
 
+function parseYmdToUtcDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const actor = await requireUser(request, [
@@ -39,7 +44,9 @@ export async function GET(request: NextRequest) {
     const lessons = await db.lessonSession.findMany({
       where: {
         groupId: query.groupId,
-        lessonDate: query.lessonDate ? new Date(query.lessonDate) : undefined,
+        lessonDate: query.lessonDate
+          ? parseYmdToUtcDate(query.lessonDate)
+          : undefined,
         endedAt: query.activeOnly ? null : undefined,
         group: {
           teacherId: actor.role === Role.TEACHER ? actor.id : query.teacherId,
@@ -122,7 +129,7 @@ export async function POST(request: NextRequest) {
     const existingLesson = await db.lessonSession.findFirst({
       where: {
         groupId: payload.groupId,
-        lessonDate: new Date(payload.lessonDate),
+        lessonDate: parseYmdToUtcDate(payload.lessonDate),
       },
       select: { id: true },
     });
@@ -134,7 +141,7 @@ export async function POST(request: NextRequest) {
     const created = await db.lessonSession.create({
       data: {
         groupId: payload.groupId,
-        lessonDate: new Date(payload.lessonDate),
+        lessonDate: parseYmdToUtcDate(payload.lessonDate),
         startedAt: new Date(),
         startedById: actor.id,
       },
