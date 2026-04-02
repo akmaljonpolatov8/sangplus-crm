@@ -64,6 +64,7 @@ model Student {
   groups      GroupStudent[]
   attendances Attendance[]
   payments    Payment[]
+  smsLogs     SmsLog[]
   smsReminders SmsReminderLog[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -182,4 +183,17 @@ model SmsReminderLog {
 
   @@index([groupId, billingMonth, createdAt])
   @@index([studentId, createdAt])
+}
+
+model SmsLog {
+  id          String   @id @default(cuid())
+  studentId   String
+  parentPhone String
+  message     String
+  sentAt      DateTime @default(now())
+  status      String   @default("SENT")
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, sentAt])
+  @@index([sentAt])
 }

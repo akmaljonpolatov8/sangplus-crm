@@ -53,7 +53,9 @@ export async function GET(request: NextRequest) {
               OR: [
                 { firstName: { contains: search, mode: "insensitive" } },
                 { lastName: { contains: search, mode: "insensitive" } },
-                { phone: { contains: search, mode: "insensitive" } },
+                { phone: { contains: search } },
+                { parentName: { contains: search, mode: "insensitive" } },
+                { parentPhone: { contains: search } },
               ],
             }
           : {}),

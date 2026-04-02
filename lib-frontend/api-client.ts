@@ -334,7 +334,13 @@ export const studentsAPI = {
 };
 
 export const teachersAPI = {
-  list: () => apiGet("/api/teachers"),
+  list: (params?: { search?: string; isActive?: "true" | "false" }) => {
+    const search = new URLSearchParams();
+    if (params?.search) search.set("search", params.search);
+    if (params?.isActive) search.set("isActive", params.isActive);
+    const query = search.toString();
+    return apiGet(`/api/teachers${query ? `?${query}` : ""}`);
+  },
   get: (id: string) => apiGet(`/api/teachers/${id}`),
   create: (data: Record<string, unknown>) => apiPost("/api/teachers", data),
   update: (id: string, data: Record<string, unknown>) =>
@@ -347,12 +353,28 @@ export const usersAPI = {
 };
 
 export const groupsAPI = {
-  list: () => apiGet("/api/groups"),
+  list: (params?: {
+    search?: string;
+    teacherId?: string;
+    isActive?: "true" | "false";
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.search) search.set("search", params.search);
+    if (params?.teacherId) search.set("teacherId", params.teacherId);
+    if (params?.isActive) search.set("isActive", params.isActive);
+    const query = search.toString();
+    return apiGet(`/api/groups${query ? `?${query}` : ""}`);
+  },
   get: (id: string) => apiGet(`/api/groups/${id}`),
   create: (data: Record<string, unknown>) => apiPost("/api/groups", data),
   update: (id: string, data: Record<string, unknown>) =>
     apiPatch(`/api/groups/${id}`, data),
   delete: (id: string) => apiDelete(`/api/groups/${id}`),
+};
+
+export const smsAPI = {
+  send: (data: { studentId: string; parentPhone: string; message: string }) =>
+    apiPost("/api/sms/send", data),
 };
 
 export const lessonsAPI = {

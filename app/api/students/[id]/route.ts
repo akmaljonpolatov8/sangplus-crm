@@ -164,8 +164,6 @@ export async function DELETE(
     await requireUser(request, [Role.OWNER, Role.MANAGER]);
 
     const { id } = paramsSchema.parse(await params);
-    const now = new Date();
-
     const student = await db.student.findUnique({
       where: { id },
       select: { id: true, firstName: true, lastName: true },
@@ -175,23 +173,31 @@ export async function DELETE(
       return jsonError(404, "Student not found");
     }
 
-    await db.$transaction([
-      db.groupStudent.updateMany({
+    await db.$transaction(async (tx) => {
+      await tx.groupStudent.deleteMany({
         where: {
           studentId: id,
-          leftAt: null,
         },
-        data: {
-          leftAt: now,
+      });
+
+      await tx.attendance.deleteMany({
+        where: {
+          studentId: id,
         },
-      }),
-      db.student.update({
-        where: { id },
-        data: {
-          status: StudentStatus.INACTIVE,
+      });
+
+      await tx.payment.deleteMany({
+        where: {
+          studentId: id,
         },
-      }),
-    ]);
+      });
+
+      await tx.student.delete({
+        where: {
+          id,
+        },
+      });
+    });
 
     return jsonSuccess(
       {

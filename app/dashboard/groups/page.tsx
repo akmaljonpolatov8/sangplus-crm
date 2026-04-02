@@ -114,13 +114,15 @@ export default function GroupsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const loadData = async () => {
+  const loadData = async (search?: string) => {
     setIsLoading(true);
     setError(null);
     try {
       const [groupsData, teachersData] = await Promise.all([
-        groupsAPI.list(),
+        groupsAPI.list({ search: search?.trim() || undefined }),
         teachersAPI.list(),
       ]);
       setGroups(extractList<GroupRecord>(groupsData, ["groups"]));
@@ -137,12 +139,26 @@ export default function GroupsPage() {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (!canAccess) return;
+    loadData(debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, debouncedSearch]);
+
+  useEffect(() => {
     if (!canAccess) {
       router.replace("/dashboard/attendance");
       return;
     }
     clearLegacyDashboardCache();
-    loadData();
+    loadData(debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
 
@@ -216,7 +232,7 @@ export default function GroupsPage() {
       }
 
       setIsDialogOpen(false);
-      await loadData();
+      await loadData(debouncedSearch);
     } catch (err) {
       if (
         err instanceof ApiClientError &&
@@ -344,6 +360,7 @@ export default function GroupsPage() {
           searchPlaceholder="Guruh qidirish..."
           addButtonLabel="Yangi guruh"
           onAddClick={openCreate}
+          onSearch={setSearchInput}
           showFilters={false}
         />
       </div>

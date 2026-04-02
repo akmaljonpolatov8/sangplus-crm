@@ -30,7 +30,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { MoreHorizontal, Pencil, CircleAlert, Trash2 } from "lucide-react";
 import {
   ApiClientError,
   extractList,
@@ -40,6 +50,7 @@ import {
   usersAPI,
 } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
+import { toast } from "@/hooks/use-toast";
 
 interface TeacherRecord {
   id: string;
@@ -92,10 +103,14 @@ export default function TeachersPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [formData, setFormData] = useState<TeacherForm>(initialForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const [isCreatingLogin, setIsCreatingLogin] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{
@@ -109,11 +124,13 @@ export default function TeachersPage() {
   });
   const [loginFormError, setLoginFormError] = useState<string | null>(null);
 
-  const loadTeachers = async () => {
+  const loadTeachers = async (search?: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await teachersAPI.list();
+      const data = await teachersAPI.list({
+        search: search?.trim() || undefined,
+      });
       setTeachers(extractList<TeacherRecord>(data, ["teachers"]));
     } catch (err) {
       setError(getApiErrorMessage(err));
@@ -135,11 +152,25 @@ export default function TeachersPage() {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (!canAccess) return;
+    loadTeachers(debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, debouncedSearch]);
+
+  useEffect(() => {
     if (!canAccess) {
       router.replace("/dashboard/attendance");
       return;
     }
-    loadTeachers();
+    loadTeachers(debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
 
@@ -224,7 +255,8 @@ export default function TeachersPage() {
         username: loginForm.username.trim(),
         password: loginForm.password,
       });
-      await loadTeachers();
+      toast({ title: "Login muvaffaqiyatli yaratildi" });
+      await loadTeachers(debouncedSearch);
     } catch (err) {
       setLoginFormError(getApiErrorMessage(err));
     } finally {
@@ -259,7 +291,12 @@ export default function TeachersPage() {
       }
 
       setIsDialogOpen(false);
-      await loadTeachers();
+      toast({
+        title: formData.id
+          ? "O'qituvchi ma'lumotlari saqlandi"
+          : "Yangi o'qituvchi qo'shildi",
+      });
+      await loadTeachers(debouncedSearch);
     } catch (err) {
       if (
         err instanceof ApiClientError &&
@@ -271,6 +308,30 @@ export default function TeachersPage() {
       setFormError(getApiErrorMessage(err));
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const deleteTeacher = async () => {
+    if (!formData.id) return;
+
+    setIsDeleting(true);
+    setFormError(null);
+
+    try {
+      await teachersAPI.delete(formData.id);
+      toast({ title: "O'qituvchi o'chirildi" });
+      setIsDeleteConfirmOpen(false);
+      setIsDialogOpen(false);
+      setFormData(initialForm);
+      await loadTeachers(debouncedSearch);
+    } catch (err) {
+      toast({
+        title: "O'qituvchini o'chirib bo'lmadi",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -361,6 +422,7 @@ export default function TeachersPage() {
           searchPlaceholder="O'qituvchi qidirish..."
           addButtonLabel="O'qituvchi qo'shish"
           onAddClick={openCreate}
+          onSearch={setSearchInput}
           showFilters={false}
         />
       </div>
@@ -492,6 +554,20 @@ export default function TeachersPage() {
           </div>
 
           <DialogFooter>
+            {role === "owner" && formData.id ? (
+              <Button
+                variant="destructive"
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                disabled={isSaving || isDeleting}
+              >
+                {isDeleting ? (
+                  <CircleAlert className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 size-4" />
+                )}
+                O&apos;chirish
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Bekor qilish
             </Button>
@@ -504,6 +580,35 @@ export default function TeachersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              O&apos;qituvchini o&apos;chirish
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Haqiqatan ham o&apos;chirmoqchimisiz? Bu amalni qaytarib
+              bo&apos;lmaydi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Bekor qilish
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={deleteTeacher}
+              disabled={isDeleting}
+            >
+              Ha, o&apos;chirish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={isLoginDialogOpen} onOpenChange={setIsLoginDialogOpen}>
         <DialogContent className="sm:max-w-md">

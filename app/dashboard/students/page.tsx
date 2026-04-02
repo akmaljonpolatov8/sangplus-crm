@@ -30,6 +30,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MoreHorizontal, Pencil, CircleAlert, Trash2, X } from "lucide-react";
 import {
   ApiClientError,
@@ -40,6 +50,7 @@ import {
 } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 import { clearLegacyDashboardCache } from "@/lib-frontend/utils";
+import { toast } from "@/hooks/use-toast";
 
 interface StudentRecord {
   id: string;
@@ -119,17 +130,22 @@ export default function StudentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [formData, setFormData] = useState<StudentForm>(initialForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const loadStudents = async () => {
+  const loadStudents = async (search?: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await studentsAPI.list();
+      const data = await studentsAPI.list({
+        search: search?.trim() || undefined,
+      });
       const list = extractList<RawStudentRecord>(data, ["students"]);
       setStudents(
         list.map((student) => ({
@@ -160,12 +176,26 @@ export default function StudentsPage() {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (!canAccess) return;
+    loadStudents(debouncedSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, debouncedSearch]);
+
+  useEffect(() => {
     if (!canAccess) {
       router.replace("/dashboard/attendance");
       return;
     }
     clearLegacyDashboardCache();
-    loadStudents();
+    loadStudents(debouncedSearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
 
@@ -220,7 +250,12 @@ export default function StudentsPage() {
       }
 
       setIsDialogOpen(false);
-      await loadStudents();
+      toast({
+        title: formData.id
+          ? "O'quvchi ma'lumotlari saqlandi"
+          : "Yangi o'quvchi qo'shildi",
+      });
+      await loadStudents(debouncedSearch);
     } catch (err) {
       if (
         err instanceof ApiClientError &&
@@ -237,21 +272,25 @@ export default function StudentsPage() {
 
   const deleteStudent = async () => {
     if (!formData.id) return;
-    const confirmed = window.confirm(
-      "Ushbu o'quvchini o'chirishni tasdiqlaysizmi?",
-    );
-    if (!confirmed) return;
 
     setIsDeleting(true);
     setFormError(null);
 
     try {
       await studentsAPI.delete(formData.id);
+      toast({
+        title: "O'quvchi o'chirildi",
+      });
+      setIsDeleteConfirmOpen(false);
       setIsDialogOpen(false);
       setFormData(initialForm);
-      await loadStudents();
+      await loadStudents(debouncedSearch);
     } catch (err) {
-      setFormError(getApiErrorMessage(err));
+      toast({
+        title: "O'quvchini o'chirib bo'lmadi",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -350,6 +389,7 @@ export default function StudentsPage() {
           searchPlaceholder="O'quvchi qidirish..."
           addButtonLabel="O'quvchi qo'shish"
           onAddClick={openCreate}
+          onSearch={setSearchInput}
           showFilters={false}
         />
       </div>
@@ -547,7 +587,7 @@ export default function StudentsPage() {
             {formData.id ? (
               <Button
                 variant="destructive"
-                onClick={deleteStudent}
+                onClick={() => setIsDeleteConfirmOpen(true)}
                 disabled={isDeleting || isSaving}
               >
                 {isDeleting ? (
@@ -574,6 +614,33 @@ export default function StudentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>O&apos;quvchini o&apos;chirish</AlertDialogTitle>
+            <AlertDialogDescription>
+              Haqiqatan ham o&apos;chirmoqchimisiz? Bu amalni qaytarib
+              bo&apos;lmaydi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Bekor qilish
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={deleteStudent}
+              disabled={isDeleting}
+            >
+              Ha, o&apos;chirish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

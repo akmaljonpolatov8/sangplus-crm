@@ -149,16 +149,16 @@ export async function DELETE(
       return jsonError(404, "Teacher not found");
     }
 
-    await db.$transaction([
-      db.group.updateMany({
+    await db.$transaction(async (tx) => {
+      await tx.group.updateMany({
         where: { teacherId: id },
         data: { teacherId: null },
-      }),
-      db.user.update({
+      });
+
+      await tx.user.delete({
         where: { id },
-        data: { isActive: false },
-      }),
-    ]);
+      });
+    });
 
     return jsonSuccess(
       {

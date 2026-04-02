@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import { Toaster } from "@/components/ui/toaster";
 import { RoleProvider } from "@/lib-frontend/role-context";
 import "./globals.css";
 
@@ -34,7 +35,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        <RoleProvider>{children}</RoleProvider>
+        <RoleProvider>
+          {children}
+          <Toaster />
+        </RoleProvider>
         <Analytics />
       </body>
     </html>

@@ -2,11 +2,29 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MessageSquareMore } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -19,9 +37,11 @@ import {
   getApiErrorMessage,
   groupsAPI,
   paymentsAPI,
+  smsAPI,
 } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 import { formatCurrency } from "@/lib-frontend/utils";
+import { toast } from "@/hooks/use-toast";
 
 interface GroupItem {
   id: string;
@@ -32,13 +52,44 @@ interface DebtorItem {
   paymentId: string;
   studentId: string;
   studentName: string;
+  parentName?: string | null;
   phone?: string | null;
   parentPhone?: string | null;
   groupId: string;
   groupName: string;
+  billingMonth: string;
   dueDate: string;
   daysOverdue: number;
+  smsSentToday?: boolean;
   amount?: number;
+}
+
+interface SmsModalState {
+  isOpen: boolean;
+  studentId: string;
+  studentName: string;
+  parentPhone: string;
+  message: string;
+}
+
+function formatMonthLabel(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "joriy";
+  return date.toLocaleDateString("uz-UZ", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function buildSmsTemplate(item: DebtorItem): string {
+  const parentName = item.parentName?.trim() || "ota-ona";
+  const monthLabel = formatMonthLabel(item.billingMonth);
+  const amountLabel =
+    item.amount != null
+      ? formatCurrency(item.amount).replace(" so'm", "")
+      : "belgilangan";
+
+  return `Hurmatli ${parentName}! Farzandingiz ${item.studentName}ning ${monthLabel} oyi uchun ${amountLabel} so'm to'lovi hali amalga oshirilmagan.\nIltimos, imkon qadar tezroq to'lovni amalga oshiring.\nSangPlus o'quv markazi.`;
 }
 
 export default function DebtorsPage() {
@@ -52,7 +103,15 @@ export default function DebtorsPage() {
   const [groupId, setGroupId] = useState("all");
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSendingSms, setIsSendingSms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [smsModal, setSmsModal] = useState<SmsModalState>({
+    isOpen: false,
+    studentId: "",
+    studentName: "",
+    parentPhone: "",
+    message: "",
+  });
 
   const load = async () => {
     setIsLoading(true);
@@ -67,10 +126,7 @@ export default function DebtorsPage() {
       ]);
 
       setGroups(extractList<GroupItem>(groupsData, ["groups"]));
-      const debtorList = extractList<DebtorItem>(debtorsData, ["debtors"]);
-      setDebtors(
-        debtorList.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0)),
-      );
+      setDebtors(extractList<DebtorItem>(debtorsData, ["debtors"]));
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -89,14 +145,53 @@ export default function DebtorsPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return debtors;
+    const sorted = [...debtors].sort(
+      (a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0),
+    );
 
-    return debtors.filter((item) =>
+    if (!query) return sorted;
+
+    return sorted.filter((item) =>
       [item.studentName, item.phone, item.parentPhone, item.groupName]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query)),
     );
   }, [debtors, search]);
+
+  const openSmsModal = (item: DebtorItem) => {
+    setSmsModal({
+      isOpen: true,
+      studentId: item.studentId,
+      studentName: item.studentName,
+      parentPhone: item.parentPhone || "",
+      message: buildSmsTemplate(item),
+    });
+  };
+
+  const sendSms = async () => {
+    if (!smsModal.studentId) return;
+
+    setIsSendingSms(true);
+    try {
+      await smsAPI.send({
+        studentId: smsModal.studentId,
+        parentPhone: smsModal.parentPhone.trim(),
+        message: smsModal.message.trim(),
+      });
+
+      toast({ title: "SMS yuborildi!" });
+      setSmsModal((prev) => ({ ...prev, isOpen: false }));
+      await load();
+    } catch (err) {
+      toast({
+        title: "SMS yuborishda xatolik",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
 
   if (!canAccess) return null;
 
@@ -146,42 +241,147 @@ export default function DebtorsPage() {
 
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        ) : filtered.length === 0 ? (
+          <Card>
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              Qarzdorlar topilmadi
+            </CardContent>
+          </Card>
         ) : (
-          <div className="space-y-2">
-            {filtered.length === 0 ? (
-              <Card>
-                <CardContent className="p-4 text-sm text-muted-foreground">
-                  Qarzdorlar topilmadi
-                </CardContent>
-              </Card>
-            ) : (
-              filtered.map((item) => (
-                <Card key={item.paymentId}>
-                  <CardContent className="space-y-1 p-4 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-semibold">{item.studentName}</p>
-                      <p className="text-destructive">
-                        {item.daysOverdue} kun kechikkan
-                      </p>
-                    </div>
-                    <p>Guruh: {item.groupName}</p>
-                    <p>Telefon: {item.phone || "-"}</p>
-                    <p>Ota-ona telefoni: {item.parentPhone || "-"}</p>
+          <div className="overflow-hidden rounded-2xl border border-border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>O&apos;quvchi ismi</TableHead>
+                  <TableHead>Guruh</TableHead>
+                  <TableHead>Ota-ona telefoni</TableHead>
+                  {canViewAmounts ? (
+                    <TableHead>Qarzdorlik miqdori</TableHead>
+                  ) : null}
+                  <TableHead>Qarzdorlik muddati</TableHead>
+                  <TableHead className="text-right">SMS</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((item) => (
+                  <TableRow key={item.paymentId}>
+                    <TableCell className="font-medium">
+                      {item.studentName}
+                    </TableCell>
+                    <TableCell>{item.groupName}</TableCell>
+                    <TableCell>
+                      {item.parentPhone ? (
+                        <a
+                          href={`tel:${item.parentPhone}`}
+                          className="text-primary underline-offset-4 hover:underline"
+                        >
+                          {item.parentPhone}
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
                     {canViewAmounts ? (
-                      <p className="text-destructive">
-                        Qarz: {formatCurrency(item.amount)}
-                      </p>
+                      <TableCell className="text-destructive">
+                        {item.amount == null
+                          ? "-"
+                          : formatCurrency(item.amount)}
+                      </TableCell>
                     ) : null}
-                    <Button variant="outline" disabled>
-                      SMS yuborish
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+                    <TableCell className="text-destructive">
+                      {item.daysOverdue} kun
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {item.smsSentToday ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600">
+                            <MessageSquareMore className="size-3" />
+                            Bugun yuborilgan
+                          </span>
+                        ) : null}
+                        <Button
+                          type="button"
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                          onClick={() => openSmsModal(item)}
+                        >
+                          SMS yuborish
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
+
+      <Dialog
+        open={smsModal.isOpen}
+        onOpenChange={(open) =>
+          setSmsModal((prev) => ({ ...prev, isOpen: open }))
+        }
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>SMS yuborish</DialogTitle>
+            <DialogDescription>
+              Ota-ona telefonini tekshirib, xabar matnini yuboring.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="sms-phone">Ota-ona telefoni</Label>
+              <Input
+                id="sms-phone"
+                placeholder="+998XXXXXXXXX"
+                value={smsModal.parentPhone}
+                onChange={(event) =>
+                  setSmsModal((prev) => ({
+                    ...prev,
+                    parentPhone: event.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="sms-message">Xabar matni</Label>
+              <Textarea
+                id="sms-message"
+                rows={6}
+                value={smsModal.message}
+                onChange={(event) =>
+                  setSmsModal((prev) => ({
+                    ...prev,
+                    message: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setSmsModal((prev) => ({ ...prev, isOpen: false }))
+              }
+              disabled={isSendingSms}
+            >
+              Bekor qilish
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={sendSms}
+              disabled={isSendingSms}
+            >
+              {isSendingSms ? "Yuborilmoqda..." : "Yuborish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -38,6 +38,7 @@ function buildGroupSelect(role: Role) {
 }
 
 const groupsQuerySchema = z.object({
+  search: z.string().trim().optional(),
   teacherId: z.string().cuid().optional(),
   isActive: z
     .enum(["true", "false"])
@@ -58,8 +59,13 @@ const createGroupSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const actor = await requireUser(request, [Role.OWNER, Role.MANAGER, Role.TEACHER]);
+    const actor = await requireUser(request, [
+      Role.OWNER,
+      Role.MANAGER,
+      Role.TEACHER,
+    ]);
     const query = groupsQuerySchema.parse({
+      search: request.nextUrl.searchParams.get("search") ?? undefined,
       teacherId: request.nextUrl.searchParams.get("teacherId") ?? undefined,
       isActive: request.nextUrl.searchParams.get("isActive") ?? undefined,
     });
@@ -68,6 +74,21 @@ export async function GET(request: NextRequest) {
       where: {
         isActive: query.isActive,
         teacherId: actor.role === Role.TEACHER ? actor.id : query.teacherId,
+        ...(query.search
+          ? {
+              OR: [
+                { name: { contains: query.search, mode: "insensitive" } },
+                {
+                  teacher: {
+                    fullName: {
+                      contains: query.search,
+                      mode: "insensitive",
+                    },
+                  },
+                },
+              ],
+            }
+          : {}),
       },
       select: buildGroupSelect(actor.role),
       orderBy: { name: "asc" },
