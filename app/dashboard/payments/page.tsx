@@ -1,14 +1,16 @@
 "use client";
+/* eslint-disable react/no-unescaped-entities */
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/header";
-import { DataTable } from "@/components/dashboard/data-table";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -25,18 +27,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, CircleAlert, CheckCircle } from "lucide-react";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { CircleAlert, Pencil } from "lucide-react";
 import {
-  ApiClientError,
   extractList,
   getApiErrorMessage,
   groupsAPI,
   paymentsAPI,
+  studentsAPI,
+  smsAPI,
 } from "@/lib-frontend/api-client";
 import { hasAccess, useRole } from "@/lib-frontend/role-context";
 import {
@@ -45,130 +50,110 @@ import {
   normalizeMoney,
   toYMD,
 } from "@/lib-frontend/utils";
+import { toast } from "@/hooks/use-toast";
 
 type PaymentStatus = "PAID" | "UNPAID" | "PARTIAL" | "OVERDUE";
-
-interface PaymentRaw {
-  id: string;
-  student?: {
-    id?: string;
-    firstName?: string;
-    lastName?: string;
-    fullName?: string;
-  };
-  group?: { id?: string; name?: string };
-  billingMonth?: string;
-  dueDate?: string;
-  amount?: number | string;
-  paidAmount?: number | string;
-  status?: PaymentStatus;
-  paidAt?: string | null;
-  notes?: string | null;
-}
-
-interface PaymentView {
-  id: string;
-  studentId: string;
-  studentName: string;
-  groupId: string;
-  groupName: string;
-  billingMonth: string;
-  dueDate: string;
-  amount: number;
-  paidAmount: number;
-  debtAmount: number;
-  status: PaymentStatus;
-  paidAt: string;
-  notes: string;
-}
 
 interface GroupItem {
   id: string;
   name?: string;
+  monthlyFee?: number | string;
+}
+
+interface PaymentView {
+  id: string;
+  paymentId?: string | null;
+  student: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone?: string | null;
+    parentPhone?: string | null;
+    parentName?: string | null;
+  };
+  group: {
+    id: string;
+    name: string;
+  };
+  billingMonth: string;
+  dueDate: string;
+  status: PaymentStatus;
+  amount?: number;
+  paidAmount?: number;
+  notes?: string | null;
 }
 
 interface Summary {
-  group?: { id?: string; name?: string };
-  billingMonth?: string;
-  dueDate?: string;
-  totals?: {
-    expectedAmount?: number | string;
-    collectedAmount?: number | string;
-    debtAmount?: number | string;
-    totalAmount?: number | string;
-    paidAmount?: number | string;
-  };
   paidStudents?: Array<{
-    student?: {
-      id?: string;
-      firstName?: string;
-      lastName?: string;
-      fullName?: string;
-    };
     studentId?: string;
     studentName?: string;
-    amount?: number | string;
+    amount?: number;
   }>;
   debtors?: Array<{
-    student?: {
-      id?: string;
-      firstName?: string;
-      lastName?: string;
-      fullName?: string;
-    };
     studentId?: string;
     studentName?: string;
-    debtAmount?: number | string;
-  }>;
-  entries?: Array<{
-    studentId?: string;
-    studentName?: string;
-    amount?: number | string;
-    paidAmount?: number | string;
-    debtAmount?: number | string;
+    debtAmount?: number;
   }>;
 }
 
-interface DebtorItem {
-  paymentId: string;
+interface OverdueStudent {
+  studentId: string;
+  fullName: string;
+  groupName: string;
+  parentPhone: string;
+  parentName?: string | null;
+  monthlyFee: number;
+  daysOverdue: number;
+  billingMonth: string;
+}
+
+interface SmsHistoryItem {
+  id: string;
+  message: string;
+  sentAt: string;
+  status: string;
+  type: string;
+  parentPhone: string;
+}
+
+interface GroupBulkRow {
   studentId: string;
   studentName: string;
   phone?: string | null;
-  parentPhone?: string | null;
+  paid: boolean;
+  amount: number;
+  paidAmount: number;
+  status: PaymentStatus;
+  paymentId?: string | null;
+}
+
+interface PaymentForm {
+  id?: string;
+  studentId: string;
   groupId: string;
-  groupName: string;
-  dueDate: string;
-  daysOverdue: number;
-  amount?: number;
+  billingMonth: string;
+  amount: string;
+  paidAmount: string;
+  notes: string;
+  status: PaymentStatus;
 }
 
-function parseSummary(payload: unknown): Summary | null {
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-
-  if ("totals" in (payload as Record<string, unknown>)) {
-    return payload as Summary;
-  }
-
-  const obj = payload as Record<string, unknown>;
-  const fromKey = obj.summary;
-  if (fromKey && typeof fromKey === "object") {
-    return fromKey as Summary;
-  }
-
-  return payload as Summary;
+interface StudentItem {
+  id: string;
+  firstName?: string;
+  lastName?: string;
 }
 
-function parsePaymentStatus(status?: string): PaymentStatus {
-  const value = String(status || "UNPAID").toUpperCase();
+const CENTER_PHONE = process.env.NEXT_PUBLIC_CENTER_PHONE || "+998900000000";
+
+function parseStatus(status?: string): PaymentStatus {
   if (
-    value === "PAID" ||
-    value === "UNPAID" ||
-    value === "PARTIAL" ||
-    value === "OVERDUE"
+    status === "PAID" ||
+    status === "UNPAID" ||
+    status === "PARTIAL" ||
+    status === "OVERDUE"
   ) {
-    return value;
+    return status;
   }
   return "UNPAID";
 }
@@ -188,76 +173,35 @@ function statusForBadge(
   }
 }
 
-function resolveStudentInfo(item: {
-  student?: {
-    id?: string;
-    firstName?: string;
-    lastName?: string;
-    fullName?: string;
-  };
-  studentId?: string;
-  studentName?: string;
-}) {
-  const nestedName =
-    item.student?.fullName ||
-    `${item.student?.firstName || ""} ${item.student?.lastName || ""}`.trim();
-
-  return {
-    id: item.student?.id || item.studentId || "",
-    name: nestedName || item.studentName || "Noma'lum",
-  };
+function toMonthValue(value: string): string {
+  const ymd = toYMD(value);
+  return ymd ? ymd.slice(0, 7) : toYMD(new Date()).slice(0, 7);
 }
 
-interface PaymentForm {
-  id?: string;
-  studentId: string;
-  groupId: string;
+function monthLabel(month: string): string {
+  const date = new Date(`${month}-01`);
+  if (Number.isNaN(date.getTime())) return "joriy";
+  return date.toLocaleDateString("uz-UZ", { month: "long", year: "numeric" });
+}
+
+function buildSmsText(input: {
+  parentName?: string | null;
+  studentName: string;
   billingMonth: string;
-  amount: string;
-  paidAmount: string;
-  notes: string;
-}
+  amount?: number;
+}) {
+  const parentName = input.parentName?.trim() || "ota-ona";
+  const billingMonthLabel = monthLabel(input.billingMonth);
+  const currentMonthLabel = monthLabel(toMonthValue(toYMD(new Date())));
+  const amountText =
+    input.amount != null
+      ? formatCurrency(input.amount).replace(" so'm", "")
+      : "belgilangan";
 
-const initialForm: PaymentForm = {
-  studentId: "",
-  groupId: "",
-  billingMonth: toYMD(new Date()),
-  amount: "",
-  paidAmount: "",
-  notes: "",
-};
-
-function summaryDueDate(summary: Summary | null, billingMonth: string): string {
-  const fromApi = toYMD(summary?.dueDate);
-  if (fromApi) return fromApi;
-  const base = toYMD(summary?.billingMonth || billingMonth);
-  if (!base) return "-";
-  return `${base.slice(0, 8)}15`;
-}
-
-function mapPayment(item: PaymentRaw): PaymentView {
-  const studentName =
-    item.student?.fullName ||
-    `${item.student?.firstName || ""} ${item.student?.lastName || ""}`.trim() ||
-    "Noma'lum";
-  const amount = normalizeMoney(item.amount);
-  const paidAmount = normalizeMoney(item.paidAmount);
-
-  return {
-    id: item.id,
-    studentId: item.student?.id || "",
-    studentName,
-    groupId: item.group?.id || "",
-    groupName: item.group?.name || "-",
-    billingMonth: toYMD(item.billingMonth) || "",
-    dueDate: toYMD(item.dueDate) || "",
-    amount,
-    paidAmount,
-    debtAmount: Math.max(0, amount - paidAmount),
-    status: parsePaymentStatus(item.status),
-    paidAt: toYMD(item.paidAt) || "",
-    notes: item.notes || "",
-  };
+  return `Assalomu alaykum, ${parentName}!\nFarzandingiz ${input.studentName}ning ${billingMonthLabel} oyi uchun ${amountText} so'm to'lovi amalga oshirilmagan.\nIltimos, to'lovni ${currentMonthLabel} oyining oxirigacha amalga oshiring.\nSangPlus o'quv markazi. Tel: ${CENTER_PHONE}`.slice(
+    0,
+    160,
+  );
 }
 
 export default function PaymentsPage() {
@@ -266,39 +210,71 @@ export default function PaymentsPage() {
   const searchParams = useSearchParams();
   const { role } = useRole();
 
-  const canAccessPayments = hasAccess(role, "payments");
+  const canAccess = hasAccess(role, "payments");
   const canViewAmounts = role === "owner";
 
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [payments, setPayments] = useState<PaymentView[]>([]);
-  const [debtors, setDebtors] = useState<DebtorItem[]>([]);
-  const [summary, setSummary] = useState<Summary | null>(null);
+  const [, setSummary] = useState<Summary | null>(null);
+  const [overdueRows, setOverdueRows] = useState<OverdueStudent[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [formData, setFormData] = useState<PaymentForm>(initialForm);
+  const [editOpen, setEditOpen] = useState(false);
+  const [paymentForm, setPaymentForm] = useState<PaymentForm>({
+    studentId: "",
+    groupId: "",
+    billingMonth: `${toMonthValue(toYMD(new Date()))}-01`,
+    amount: "",
+    paidAmount: "",
+    notes: "",
+    status: "UNPAID",
+  });
+  const [formStudents, setFormStudents] = useState<StudentItem[]>([]);
+
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [groupStep, setGroupStep] = useState<1 | 2>(1);
+  const [groupFlow, setGroupFlow] = useState({
+    groupId: "",
+    billingMonth: toMonthValue(toYMD(new Date())),
+    monthlyFee: "0",
+  });
+  const [groupRows, setGroupRows] = useState<GroupBulkRow[]>([]);
+  const [isLoadingGroupRows, setIsLoadingGroupRows] = useState(false);
+
+  const [smsModal, setSmsModal] = useState({
+    open: false,
+    studentId: "",
+    studentName: "",
+    parentPhone: "",
+    message: "",
+  });
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [smsSentAtMap, setSmsSentAtMap] = useState<Record<string, string>>({});
+
+  const [historyModal, setHistoryModal] = useState({
+    open: false,
+    studentName: "",
+    loading: false,
+    rows: [] as SmsHistoryItem[],
+  });
 
   const selectedGroupId = searchParams.get("groupId") || "all";
   const selectedStatus = searchParams.get("status") || "all";
-  const selectedBillingMonth =
-    searchParams.get("billingMonth") || toYMD(new Date());
+  const selectedMonth =
+    searchParams.get("month") || toMonthValue(toYMD(new Date()));
 
   const updateFilters = (next: {
     groupId?: string;
     status?: string;
-    billingMonth?: string;
+    month?: string;
   }) => {
     const params = new URLSearchParams(searchParams.toString());
-
     const groupId = next.groupId ?? selectedGroupId;
     const status = next.status ?? selectedStatus;
-    const billingMonth = next.billingMonth ?? selectedBillingMonth;
+    const month = next.month ?? selectedMonth;
 
     if (groupId === "all") params.delete("groupId");
     else params.set("groupId", groupId);
@@ -306,49 +282,85 @@ export default function PaymentsPage() {
     if (status === "all") params.delete("status");
     else params.set("status", status);
 
-    params.set("billingMonth", toYMD(billingMonth));
+    params.set("month", month);
     router.replace(`${pathname}?${params.toString()}`);
   };
 
   const loadAll = async () => {
-    if (!canAccessPayments) return;
+    if (!canAccess) return;
 
     setIsLoading(true);
     setError(null);
-
     try {
-      const [groupsData, paymentsData, debtorsData] = await Promise.all([
+      const [groupsData, paymentsData, overdueData] = await Promise.all([
         groupsAPI.list(),
         paymentsAPI.list({
           groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
-          billingMonth: selectedBillingMonth,
-          status:
-            selectedStatus === "all" ? undefined : selectedStatus.toUpperCase(),
+          month: selectedMonth,
+          status: selectedStatus === "all" ? undefined : selectedStatus,
         }),
-        paymentsAPI.debtors({
+        paymentsAPI.overdue({
           groupId: selectedGroupId === "all" ? undefined : selectedGroupId,
-          limit: 200,
         }),
       ]);
 
       const groupsList = extractList<GroupItem>(groupsData, ["groups"]);
       setGroups(groupsList);
-      setPayments(
-        extractList<PaymentRaw>(paymentsData, ["payments"]).map(mapPayment),
-      );
-      const debtorList = extractList<DebtorItem>(debtorsData, ["debtors"]);
-      setDebtors(
-        debtorList.sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0)),
-      );
-      const summaryGroupId =
-        selectedGroupId === "all" ? groupsList[0]?.id : selectedGroupId;
 
-      if (summaryGroupId) {
-        const summaryData = await paymentsAPI.summary({
-          groupId: summaryGroupId,
-          billingMonth: selectedBillingMonth,
+      const paymentRows = extractList<Record<string, unknown>>(paymentsData, [
+        "payments",
+      ])
+        .map((row) => {
+          const student = (row.student || {}) as Record<string, unknown>;
+          const group = (row.group || {}) as Record<string, unknown>;
+          return {
+            id: String(row.id || ""),
+            paymentId: row.paymentId
+              ? String(row.paymentId)
+              : row.id
+                ? String(row.id)
+                : null,
+            student: {
+              id: String(student.id || ""),
+              firstName: String(student.firstName || ""),
+              lastName: String(student.lastName || ""),
+              phone: student.phone as string | null | undefined,
+              parentPhone: student.parentPhone as string | null | undefined,
+              parentName: student.parentName as string | null | undefined,
+            },
+            group: {
+              id: String(group.id || ""),
+              name: String(group.name || "-"),
+            },
+            billingMonth:
+              toYMD(row.billingMonth as string) || `${selectedMonth}-01`,
+            dueDate: toYMD(row.dueDate as string) || `${selectedMonth}-15`,
+            status: parseStatus(String(row.status || "UNPAID")),
+            amount: canViewAmounts ? normalizeMoney(row.amount) : undefined,
+            paidAmount: canViewAmounts
+              ? normalizeMoney(row.paidAmount)
+              : undefined,
+            notes: (row.notes as string | null | undefined) || null,
+          } satisfies PaymentView;
+        })
+        .filter((row) => {
+          if (selectedStatus === "all") return true;
+          return row.status === selectedStatus;
         });
-        setSummary(parseSummary(summaryData));
+      setPayments(paymentRows);
+
+      const overdueList = extractList<OverdueStudent>(overdueData, [
+        "overdue",
+        "students",
+      ]);
+      setOverdueRows(overdueList);
+
+      if (selectedGroupId !== "all") {
+        const summaryData = await paymentsAPI.summary({
+          groupId: selectedGroupId,
+          billingMonth: `${selectedMonth}-01`,
+        });
+        setSummary((summaryData as Summary) || null);
       } else {
         setSummary(null);
       }
@@ -360,201 +372,341 @@ export default function PaymentsPage() {
   };
 
   useEffect(() => {
-    if (!canAccessPayments) {
+    if (!canAccess) {
       router.replace("/dashboard/attendance");
       return;
     }
     clearLegacyDashboardCache();
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    canAccessPayments,
-    selectedGroupId,
-    selectedStatus,
-    selectedBillingMonth,
-  ]);
+  }, [canAccess, selectedGroupId, selectedStatus, selectedMonth]);
 
-  const stats = useMemo(() => {
-    const totalAmount = payments.reduce((acc, item) => acc + item.amount, 0);
-    const totalPaid = payments.reduce((acc, item) => acc + item.paidAmount, 0);
-    const totalDebt = payments.reduce((acc, item) => acc + item.debtAmount, 0);
-
-    return {
-      totalAmount,
-      totalPaid,
-      totalDebt,
-      paidCount: payments.filter((p) => p.status === "PAID").length,
-      debtors: payments.filter((p) => p.status !== "PAID").length,
-    };
-  }, [payments]);
-
-  const generatePayments = async () => {
-    setIsGenerating(true);
-    setError(null);
-    try {
-      await paymentsAPI.generateMonthly();
-      await loadAll();
-    } catch (err) {
-      setError(getApiErrorMessage(err));
-    } finally {
-      setIsGenerating(false);
-    }
+  const refreshAll = async () => {
+    await loadAll();
   };
 
-  const openCreate = () => {
-    setFormData({ ...initialForm, billingMonth: selectedBillingMonth });
-    setFieldErrors({});
-    setFormError(null);
-    setIsDialogOpen(true);
-  };
-
-  const openEdit = (item: PaymentView) => {
-    setFormData({
-      id: item.id,
-      studentId: item.studentId,
-      groupId: item.groupId,
-      billingMonth: item.billingMonth,
-      amount: String(item.amount),
-      paidAmount: String(item.paidAmount),
-      notes: item.notes,
+  const openEditModal = (payment: PaymentView) => {
+    setPaymentForm({
+      id: payment.paymentId || payment.id,
+      studentId: payment.student.id,
+      groupId: payment.group.id,
+      billingMonth: toYMD(payment.billingMonth),
+      amount: String(payment.amount ?? 0),
+      paidAmount: String(payment.paidAmount ?? 0),
+      notes: payment.notes || "",
+      status: payment.status,
     });
-    setFieldErrors({});
-    setFormError(null);
-    setIsDialogOpen(true);
+    setFormStudents([
+      {
+        id: payment.student.id,
+        firstName: payment.student.firstName,
+        lastName: payment.student.lastName,
+      },
+    ]);
+    setEditOpen(true);
   };
 
-  const submitForm = async () => {
-    setFormError(null);
-    setFieldErrors({});
+  const openCreateModal = async () => {
+    const defaultGroupId =
+      selectedGroupId === "all" ? groups[0]?.id || "" : selectedGroupId;
+    setPaymentForm({
+      studentId: "",
+      groupId: defaultGroupId,
+      billingMonth: `${selectedMonth}-01`,
+      amount: "",
+      paidAmount: "",
+      notes: "",
+      status: "UNPAID",
+    });
 
-    const amount = normalizeMoney(formData.amount);
-    const paidAmount = normalizeMoney(formData.paidAmount);
-
-    if (paidAmount > amount) {
-      setFieldErrors({
-        paidAmount: "paidAmount amountdan katta bo'lishi mumkin emas",
-      });
-      return;
+    if (defaultGroupId) {
+      const studentsData = await studentsAPI.list({ groupId: defaultGroupId });
+      setFormStudents(extractList<StudentItem>(studentsData, ["students"]));
+    } else {
+      setFormStudents([]);
     }
 
+    setEditOpen(true);
+  };
+
+  const saveEditPayment = async () => {
     setIsSaving(true);
-
     try {
-      const payload = {
-        studentId: formData.studentId,
-        groupId: formData.groupId,
-        billingMonth: toYMD(formData.billingMonth),
-        amount,
-        paidAmount,
-        notes: formData.notes.trim() || null,
-      };
+      const amount = normalizeMoney(paymentForm.amount);
+      let paidAmount = normalizeMoney(paymentForm.paidAmount);
+      if (paymentForm.status === "PAID") {
+        paidAmount = amount;
+      } else if (paymentForm.status === "UNPAID") {
+        paidAmount = 0;
+      }
 
-      if (formData.id) {
-        await paymentsAPI.update(formData.id, payload);
+      if (paymentForm.id) {
+        await paymentsAPI.update(paymentForm.id, {
+          amount,
+          paidAmount,
+          notes: paymentForm.notes.trim() || null,
+        });
       } else {
-        await paymentsAPI.create(payload);
+        await paymentsAPI.create({
+          studentId: paymentForm.studentId,
+          groupId: paymentForm.groupId,
+          billingMonth: paymentForm.billingMonth,
+          amount,
+          paidAmount,
+          notes: paymentForm.notes.trim() || null,
+        });
       }
 
-      setIsDialogOpen(false);
-      await loadAll();
+      toast({ title: "To'lov yangilandi" });
+      setEditOpen(false);
+      await refreshAll();
     } catch (err) {
-      if (
-        err instanceof ApiClientError &&
-        (err.status === 400 || err.status === 409) &&
-        err.fieldErrors
-      ) {
-        setFieldErrors(err.fieldErrors);
-      }
-      setFormError(getApiErrorMessage(err));
+      const message = getApiErrorMessage(err);
+      toast({
+        title: "Saqlashda xatolik",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (!canAccessPayments) return null;
+  const startGroupFlow = () => {
+    setGroupStep(1);
+    setGroupRows([]);
+    setGroupFlow({
+      groupId: selectedGroupId !== "all" ? selectedGroupId : "",
+      billingMonth: selectedMonth,
+      monthlyFee: "0",
+    });
+    setGroupModalOpen(true);
+  };
 
-  const columns = [
-    {
-      key: "studentName",
-      header: "O'quvchi",
-      render: (item: PaymentView) => (
-        <span className="font-medium">{item.studentName}</span>
-      ),
-    },
-    {
-      key: "groupName",
-      header: "Guruh",
-      render: (item: PaymentView) => (
-        <span className="text-muted-foreground">{item.groupName}</span>
-      ),
-    },
-    {
-      key: "billingMonth",
-      header: "Billing month",
-      render: (item: PaymentView) => (
-        <span className="text-muted-foreground">
-          {item.billingMonth || "-"}
-        </span>
-      ),
-    },
-    ...(canViewAmounts
-      ? [
-          {
-            key: "amount",
-            header: "Amount",
-            render: (item: PaymentView) => (
-              <span>{formatCurrency(item.amount)}</span>
-            ),
-          },
-          {
-            key: "paidAmount",
-            header: "Paid",
-            render: (item: PaymentView) => (
-              <span className="text-success">
-                {formatCurrency(item.paidAmount)}
-              </span>
-            ),
-          },
-          {
-            key: "debtAmount",
-            header: "Debt",
-            render: (item: PaymentView) => (
-              <span className="text-destructive">
-                {formatCurrency(item.debtAmount)}
-              </span>
-            ),
-          },
-        ]
-      : []),
-    {
-      key: "status",
-      header: "Holat",
-      render: (item: PaymentView) => (
-        <StatusBadge status={statusForBadge(item.status)} />
-      ),
-    },
-    {
-      key: "actions",
-      header: "Amallar",
-      className: "text-right",
-      render: (item: PaymentView) => (
-        <div className="flex justify-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm">
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => openEdit(item)}>
-                Tahrirlash
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ),
-    },
-  ];
+  const loadGroupPaymentRows = async () => {
+    if (!groupFlow.groupId) return;
+
+    setIsLoadingGroupRows(true);
+    try {
+      const [groupPaymentsData, groupsData] = await Promise.all([
+        paymentsAPI.list({
+          groupId: groupFlow.groupId,
+          month: groupFlow.billingMonth,
+        }),
+        groupsAPI.list(),
+      ]);
+
+      const allGroups = extractList<GroupItem>(groupsData, ["groups"]);
+      const selectedGroup = allGroups.find(
+        (item) => item.id === groupFlow.groupId,
+      );
+      const fee = normalizeMoney(
+        selectedGroup?.monthlyFee ?? groupFlow.monthlyFee,
+      );
+
+      setGroupFlow((prev) => ({
+        ...prev,
+        monthlyFee: String(fee || 0),
+      }));
+
+      const rows = extractList<Record<string, unknown>>(groupPaymentsData, [
+        "payments",
+      ]).map((item) => {
+        const student = (item.student || {}) as Record<string, unknown>;
+        const amount = normalizeMoney(item.amount ?? fee);
+        const paidAmount = normalizeMoney(item.paidAmount);
+        const status = parseStatus(String(item.status || "UNPAID"));
+        return {
+          studentId: String(student.id || ""),
+          studentName:
+            `${String(student.firstName || "")} ${String(student.lastName || "")}`.trim(),
+          phone:
+            (student.phone as string | null | undefined) ||
+            (student.parentPhone as string | null | undefined),
+          paid: status === "PAID" || paidAmount >= amount,
+          amount,
+          paidAmount,
+          status,
+          paymentId: item.paymentId ? String(item.paymentId) : null,
+        } satisfies GroupBulkRow;
+      });
+      setGroupRows(rows);
+      setGroupStep(2);
+    } catch (err) {
+      toast({
+        title: "Guruh o'quvchilari yuklanmadi",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingGroupRows(false);
+    }
+  };
+
+  const markAllPaid = () => {
+    const defaultAmount = normalizeMoney(groupFlow.monthlyFee);
+    setGroupRows((prev) =>
+      prev.map((row) => ({
+        ...row,
+        paid: true,
+        paidAmount:
+          row.paidAmount > 0 ? row.paidAmount : defaultAmount || row.amount,
+        status: "PAID",
+      })),
+    );
+  };
+
+  const saveGroupPayments = async () => {
+    if (!groupFlow.groupId) return;
+
+    setIsSaving(true);
+    try {
+      const payload = groupRows.map((row) => {
+        const amount = row.amount || normalizeMoney(groupFlow.monthlyFee);
+        const paidAmount = row.paid ? row.paidAmount || amount : 0;
+        const status =
+          paidAmount >= amount ? "PAID" : paidAmount > 0 ? "PARTIAL" : "UNPAID";
+        return {
+          studentId: row.studentId,
+          amount,
+          paidAmount,
+          status,
+        };
+      });
+
+      await paymentsAPI.bulk({
+        groupId: groupFlow.groupId,
+        billingMonth: `${groupFlow.billingMonth}-01`,
+        payments: payload,
+      });
+
+      toast({ title: "To'lovlar saqlandi!" });
+      setGroupModalOpen(false);
+      await refreshAll();
+    } catch (err) {
+      toast({
+        title: "Bulk saqlashda xatolik",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openSmsForPayment = (item: PaymentView) => {
+    const studentName =
+      `${item.student.firstName} ${item.student.lastName}`.trim();
+    setSmsModal({
+      open: true,
+      studentId: item.student.id,
+      studentName,
+      parentPhone: item.student.parentPhone || "",
+      message: buildSmsText({
+        parentName: item.student.parentName,
+        studentName,
+        billingMonth: toMonthValue(item.billingMonth),
+        amount: item.amount,
+      }),
+    });
+  };
+
+  const sendSingleSms = async () => {
+    setIsSendingSms(true);
+    try {
+      const result = (await smsAPI.send({
+        studentId: smsModal.studentId,
+        parentPhone: smsModal.parentPhone,
+        message: smsModal.message,
+        type: "PAYMENT_REMINDER",
+      })) as { sentAt?: string };
+
+      if (result?.sentAt) {
+        setSmsSentAtMap((prev) => ({
+          ...prev,
+          [smsModal.studentId]: result.sentAt!,
+        }));
+      }
+      toast({ title: "SMS yuborildi! ✓" });
+      setSmsModal((prev) => ({ ...prev, open: false }));
+      await refreshAll();
+    } catch (err) {
+      toast({
+        title: "SMS yuborishda xatolik",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  const sendOverdueBulkSms = async () => {
+    if (overdueRows.length === 0) return;
+
+    setIsSendingSms(true);
+    try {
+      for (const row of overdueRows) {
+        await smsAPI.send({
+          studentId: row.studentId,
+          parentPhone: row.parentPhone,
+          message: buildSmsText({
+            parentName: row.parentName,
+            studentName: row.fullName,
+            billingMonth: toMonthValue(row.billingMonth),
+            amount: row.monthlyFee,
+          }),
+          type: "PAYMENT_REMINDER",
+        });
+      }
+      toast({ title: "Qarzdorlarga SMS yuborildi!" });
+      await refreshAll();
+    } catch (err) {
+      toast({
+        title: "SMS yuborishda xatolik",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  const openHistory = async (item: PaymentView) => {
+    const studentName =
+      `${item.student.firstName} ${item.student.lastName}`.trim();
+    setHistoryModal({ open: true, studentName, loading: true, rows: [] });
+    try {
+      const response = await smsAPI.history({
+        studentId: item.student.id,
+        limit: 50,
+      });
+      setHistoryModal((prev) => ({
+        ...prev,
+        rows: extractList<SmsHistoryItem>(response, ["history"]),
+      }));
+    } finally {
+      setHistoryModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  const paidThisMonth = useMemo(
+    () => payments.filter((item) => item.status === "PAID"),
+    [payments],
+  );
+  const debtorsThisMonth = useMemo(
+    () => payments.filter((item) => item.status !== "PAID"),
+    [payments],
+  );
+
+  const showOverdueBanner = useMemo(() => {
+    const now = new Date();
+    const day = now.getDate();
+    const isCurrentMonth = selectedMonth === toMonthValue(toYMD(new Date()));
+    return day > 15 && isCurrentMonth && overdueRows.length > 0;
+  }, [overdueRows.length, selectedMonth]);
+
+  if (!canAccess) return null;
 
   return (
     <div className="min-h-screen">
@@ -569,381 +721,694 @@ export default function PaymentsPage() {
           </Card>
         )}
 
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
-        )}
+        {showOverdueBanner ? (
+          <Card className="border-destructive/40 bg-destructive/10">
+            <CardContent className="flex flex-col items-start justify-between gap-3 p-4 md:flex-row md:items-center">
+              <p className="text-sm text-destructive">
+                ⚠️ {overdueRows.length} ta o'quvchi {monthLabel(selectedMonth)}{" "}
+                oyi uchun to'lov qilmagan! Ota-onalarga SMS yuborish
+              </p>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={sendOverdueBulkSms}
+                disabled={isSendingSms}
+              >
+                SMS yuborish
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader>
             <CardTitle>Filterlar</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
+          <CardContent className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-1">
               <Label>Guruh</Label>
               <Select
                 value={selectedGroupId}
                 onValueChange={(value) => updateFilters({ groupId: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Guruh tanlang" />
+                  <SelectValue placeholder="Guruh" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Barchasi</SelectItem>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name || g.id}
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name || group.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Status</Label>
+            <div className="space-y-1">
+              <Label>Oy</Label>
+              <Input
+                type="month"
+                value={selectedMonth}
+                onChange={(event) =>
+                  updateFilters({ month: event.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label>Holat</Label>
               <Select
                 value={selectedStatus}
                 onValueChange={(value) => updateFilters({ status: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Status" />
+                  <SelectValue placeholder="Holat" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Barchasi</SelectItem>
-                  <SelectItem value="PAID">PAID</SelectItem>
-                  <SelectItem value="PARTIAL">PARTIAL</SelectItem>
-                  <SelectItem value="UNPAID">UNPAID</SelectItem>
-                  <SelectItem value="OVERDUE">OVERDUE</SelectItem>
+                  <SelectItem value="PAID">To'langan</SelectItem>
+                  <SelectItem value="UNPAID">To'lanmagan</SelectItem>
+                  <SelectItem value="PARTIAL">Qisman</SelectItem>
+                  <SelectItem value="OVERDUE">Kechikkan</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>billingMonth (YYYY-MM-DD)</Label>
-              <Input
-                type="date"
-                value={selectedBillingMonth}
-                onChange={(e) =>
-                  updateFilters({ billingMonth: e.target.value })
-                }
-              />
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {canViewAmounts ? (
-            <>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Jami tushum</p>
-                  <p className="text-lg font-semibold text-success">
-                    {formatCurrency(stats.totalPaid)}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">Jami qarz</p>
-                  <p className="text-lg font-semibold text-destructive">
-                    {formatCurrency(stats.totalDebt)}
-                  </p>
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Kim to&apos;lagan</p>
-              <p className="text-lg font-semibold">{stats.paidCount}</p>
+            <CardHeader>
+              <CardTitle>Kim to'lagan</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {paidThisMonth.length === 0 ? (
+                <p className="text-muted-foreground">
+                  Ushbu oyda to'lov qilganlar yo'q
+                </p>
+              ) : (
+                paidThisMonth.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between rounded border p-2"
+                  >
+                    <span>
+                      {`${item.student.firstName} ${item.student.lastName}`.trim()}
+                    </span>
+                    {canViewAmounts ? (
+                      <span>{formatCurrency(item.paidAmount)}</span>
+                    ) : null}
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">Kim qarzdor</p>
-              <p className="text-lg font-semibold">{stats.debtors}</p>
+            <CardHeader>
+              <CardTitle>Kim qarzdor</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {debtorsThisMonth.length === 0 ? (
+                <p className="text-muted-foreground">Qarzdorlar yo'q</p>
+              ) : (
+                debtorsThisMonth.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between rounded border p-2"
+                  >
+                    <span>
+                      {`${item.student.firstName} ${item.student.lastName}`.trim()}
+                    </span>
+                    {canViewAmounts ? (
+                      <span className="text-destructive">
+                        {formatCurrency(
+                          Math.max(
+                            0,
+                            (item.amount || 0) - (item.paidAmount || 0),
+                          ),
+                        )}
+                      </span>
+                    ) : null}
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle>Hisobot</CardTitle>
-              {role === "owner" ? (
-                <Button
-                  variant="outline"
-                  onClick={generatePayments}
-                  disabled={isGenerating}
-                >
-                  {isGenerating
-                    ? "Yaratilmoqda..."
-                    : "15 kunlik to'lov yaratish"}
-                </Button>
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <p>Guruh: {summary?.group?.name || "-"}</p>
-            <p>
-              Billing month:{" "}
-              {toYMD(summary?.billingMonth) || selectedBillingMonth}
-            </p>
-            <p>Due date: {summaryDueDate(summary, selectedBillingMonth)}</p>
-            {canViewAmounts ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="outline" onClick={openCreateModal}>
+            + To'lov qo'shish
+          </Button>
+          <Button variant="outline" onClick={startGroupFlow}>
+            + Guruh to'lovi
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>O'quvchi</TableHead>
+                  <TableHead>Guruh</TableHead>
+                  <TableHead>Oy</TableHead>
+                  {canViewAmounts ? <TableHead>Amount</TableHead> : null}
+                  {canViewAmounts ? <TableHead>Paid</TableHead> : null}
+                  {canViewAmounts ? <TableHead>Debt</TableHead> : null}
+                  <TableHead>Holat</TableHead>
+                  <TableHead className="text-right">Amallar</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payments.map((item) => {
+                  const studentName =
+                    `${item.student.firstName} ${item.student.lastName}`.trim();
+                  const isOverdue =
+                    item.status === "OVERDUE" || item.status === "UNPAID";
+
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">
+                        <button
+                          type="button"
+                          className="text-left hover:underline"
+                          onClick={() => openHistory(item)}
+                        >
+                          {studentName}
+                        </button>
+                      </TableCell>
+                      <TableCell>{item.group.name}</TableCell>
+                      <TableCell>{toMonthValue(item.billingMonth)}</TableCell>
+                      {canViewAmounts ? (
+                        <TableCell>{formatCurrency(item.amount)}</TableCell>
+                      ) : null}
+                      {canViewAmounts ? (
+                        <TableCell>{formatCurrency(item.paidAmount)}</TableCell>
+                      ) : null}
+                      {canViewAmounts ? (
+                        <TableCell className="text-destructive">
+                          {formatCurrency(
+                            Math.max(
+                              0,
+                              (item.amount || 0) - (item.paidAmount || 0),
+                            ),
+                          )}
+                        </TableCell>
+                      ) : null}
+                      <TableCell>
+                        <StatusBadge status={statusForBadge(item.status)} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {smsSentAtMap[item.student.id] ? (
+                            <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600">
+                              SMS yuborildi{" "}
+                              {new Date(
+                                smsSentAtMap[item.student.id],
+                              ).toLocaleTimeString("uz-UZ", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          ) : null}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditModal(item)}
+                          >
+                            <Pencil className="mr-1 size-3" /> Tahrirlash
+                          </Button>
+                          {isOverdue ? (
+                            <Button
+                              size="sm"
+                              className="bg-emerald-600 hover:bg-emerald-700"
+                              onClick={() => openSmsForPayment(item)}
+                            >
+                              📱 SMS
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {paymentForm.id ? "To'lovni tahrirlash" : "To'lov qo'shish"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {!paymentForm.id ? (
               <>
-                <p>
-                  Jami amount:{" "}
-                  {formatCurrency(
-                    summary?.totals?.expectedAmount ??
-                      summary?.totals?.totalAmount,
-                  )}
-                </p>
-                <p>
-                  Jami paid:{" "}
-                  {formatCurrency(
-                    summary?.totals?.collectedAmount ??
-                      summary?.totals?.paidAmount,
-                  )}
-                </p>
-                <p>Jami debt: {formatCurrency(summary?.totals?.debtAmount)}</p>
+                <div className="space-y-1">
+                  <Label>Guruh</Label>
+                  <Select
+                    value={paymentForm.groupId}
+                    onValueChange={async (value) => {
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        groupId: value,
+                        studentId: "",
+                      }));
+                      const studentsData = await studentsAPI.list({
+                        groupId: value,
+                      });
+                      setFormStudents(
+                        extractList<StudentItem>(studentsData, ["students"]),
+                      );
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Guruhni tanlang" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name || group.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>O'quvchi</Label>
+                  <Select
+                    value={paymentForm.studentId}
+                    onValueChange={(value) =>
+                      setPaymentForm((prev) => ({ ...prev, studentId: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="O'quvchini tanlang" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formStudents.map((student) => (
+                        <SelectItem key={student.id} value={student.id}>
+                          {`${student.firstName || ""} ${student.lastName || ""}`.trim() ||
+                            student.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Oy</Label>
+                  <Input
+                    type="month"
+                    value={toMonthValue(paymentForm.billingMonth)}
+                    onChange={(event) =>
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        billingMonth: `${event.target.value}-01`,
+                      }))
+                    }
+                  />
+                </div>
               </>
             ) : null}
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="mb-2 font-medium">Kim to&apos;lagan</p>
-                {summary?.paidStudents && summary.paidStudents.length > 0 ? (
-                  <ul className="space-y-1">
-                    {summary.paidStudents.map((item) => {
-                      const student = resolveStudentInfo(item);
-                      return (
-                        <li
-                          key={`${student.id}-${student.name}`}
-                          className="flex justify-between rounded border p-2"
-                        >
-                          <span>{student.name}</span>
-                          {canViewAmounts ? (
-                            <span>{formatCurrency(item.amount)}</span>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="text-muted-foreground">
-                    Ma&apos;lumot yo&apos;q
-                  </p>
-                )}
+            <div className="space-y-1">
+              <Label>Holat</Label>
+              <Select
+                value={paymentForm.status}
+                onValueChange={(value) =>
+                  setPaymentForm((prev) => ({
+                    ...prev,
+                    status: parseStatus(value),
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Holat" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAID">To'langan</SelectItem>
+                  <SelectItem value="UNPAID">To'lanmagan</SelectItem>
+                  <SelectItem value="PARTIAL">Qisman</SelectItem>
+                  <SelectItem value="OVERDUE">Kechikkan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {canViewAmounts ? (
+              <>
+                <div className="space-y-1">
+                  <Label>Amount</Label>
+                  <Input
+                    value={paymentForm.amount}
+                    onChange={(event) =>
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        amount: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Paid amount</Label>
+                  <Input
+                    value={paymentForm.paidAmount}
+                    onChange={(event) =>
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        paidAmount: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </>
+            ) : null}
+
+            <div className="space-y-1">
+              <Label>Izoh</Label>
+              <Textarea
+                rows={3}
+                value={paymentForm.notes}
+                onChange={(event) =>
+                  setPaymentForm((prev) => ({
+                    ...prev,
+                    notes: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Bekor qilish
+            </Button>
+            <Button onClick={saveEditPayment} disabled={isSaving}>
+              {isSaving ? (
+                <CircleAlert className="mr-2 size-4 animate-spin" />
+              ) : null}
+              Saqlash
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={groupModalOpen} onOpenChange={setGroupModalOpen}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Guruh to'lovi</DialogTitle>
+            <DialogDescription>
+              {groupStep === 1
+                ? "1-bosqich: guruh va oy tanlash"
+                : "2-bosqich: o'quvchilar to'lovi"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {groupStep === 1 ? (
+            <div className="grid gap-3 py-2 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label>Guruh</Label>
+                <Select
+                  value={groupFlow.groupId}
+                  onValueChange={(value) =>
+                    setGroupFlow((prev) => ({ ...prev, groupId: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Guruhni tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name || group.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div>
-                <p className="mb-2 font-medium">Kim qarzdor</p>
-                {summary?.debtors && summary.debtors.length > 0 ? (
-                  <ul className="space-y-1">
-                    {summary.debtors.map((item) => {
-                      const student = resolveStudentInfo(item);
-                      return (
-                        <li
-                          key={`${student.id}-${student.name}`}
-                          className="flex justify-between rounded border p-2"
-                        >
-                          <span>{student.name}</span>
-                          {canViewAmounts ? (
-                            <span className="text-destructive">
-                              {formatCurrency(item.debtAmount)}
-                            </span>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="text-muted-foreground">
-                    Ma&apos;lumot yo&apos;q
-                  </p>
-                )}
+              <div className="space-y-1">
+                <Label>Oy</Label>
+                <Input
+                  type="month"
+                  value={groupFlow.billingMonth}
+                  onChange={(event) =>
+                    setGroupFlow((prev) => ({
+                      ...prev,
+                      billingMonth: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Oylik to'lov</Label>
+                <Input
+                  value={groupFlow.monthlyFee}
+                  onChange={(event) =>
+                    setGroupFlow((prev) => ({
+                      ...prev,
+                      monthlyFee: event.target.value,
+                    }))
+                  }
+                />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <DataTable
-          data={payments}
-          columns={columns}
-          searchPlaceholder="Payment qidirish..."
-          addButtonLabel="To'lov qo'shish"
-          onAddClick={openCreate}
-          showFilters={false}
-        />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Qarzdorlar</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {debtors.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Qarzdorlar topilmadi
-              </p>
-            ) : (
-              debtors.map((debtor) => (
-                <div
-                  key={debtor.paymentId}
-                  className="rounded border p-3 text-sm"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-medium">{debtor.studentName}</p>
-                    <p className="text-destructive">
-                      {debtor.daysOverdue} kun o'tgan
-                    </p>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Guruh: {debtor.groupName}
-                  </p>
-                  <p className="text-muted-foreground">
-                    Telefon: {debtor.phone || "-"}
-                  </p>
-                  <p className="text-muted-foreground">
-                    Ota-ona telefoni: {debtor.parentPhone || "-"}
-                  </p>
-                  {canViewAmounts ? (
-                    <p className="text-destructive">
-                      Qarz miqdori: {formatCurrency(debtor.amount)}
-                    </p>
-                  ) : null}
-                  <Button className="mt-2" variant="outline" disabled>
-                    SMS yuborish
-                  </Button>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {formData.id ? "To'lovni tahrirlash" : "To'lov qo'shish"}
-              </DialogTitle>
-              <DialogDescription>
-                paidAmount amountdan katta bo&apos;lmasligi kerak.
-              </DialogDescription>
-            </DialogHeader>
-
+          ) : (
             <div className="space-y-3 py-2">
-              {formError && (
-                <p className="rounded border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">
-                  {formError}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Guruhdagi barcha o'quvchilar
                 </p>
-              )}
-
-              <div className="space-y-1">
-                <Label htmlFor="studentId">Student ID</Label>
-                <Input
-                  id="studentId"
-                  value={formData.studentId}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      studentId: e.target.value,
-                    }))
-                  }
-                />
+                <Button variant="outline" onClick={markAllPaid}>
+                  Hammasini to'langan deb belgilash
+                </Button>
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="groupId">Group ID</Label>
-                <Input
-                  id="groupId"
-                  value={formData.groupId}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      groupId: e.target.value,
-                    }))
-                  }
-                />
+              <div className="max-h-90 overflow-auto rounded border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>To'landi</TableHead>
+                      <TableHead>O'quvchi ismi</TableHead>
+                      <TableHead>Telefon</TableHead>
+                      {canViewAmounts ? <TableHead>To'landi</TableHead> : null}
+                      {canViewAmounts ? <TableHead>Qarzdor</TableHead> : null}
+                      <TableHead>Holat</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupRows.map((row) => (
+                      <TableRow key={row.studentId}>
+                        <TableCell>
+                          <Checkbox
+                            checked={row.paid}
+                            onCheckedChange={(checked) => {
+                              const amount =
+                                normalizeMoney(groupFlow.monthlyFee) ||
+                                row.amount;
+                              setGroupRows((prev) =>
+                                prev.map((item) =>
+                                  item.studentId === row.studentId
+                                    ? {
+                                        ...item,
+                                        paid: Boolean(checked),
+                                        paidAmount: Boolean(checked)
+                                          ? amount
+                                          : 0,
+                                        status: Boolean(checked)
+                                          ? "PAID"
+                                          : "UNPAID",
+                                      }
+                                    : item,
+                                ),
+                              );
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>{row.studentName}</TableCell>
+                        <TableCell>{row.phone || "-"}</TableCell>
+                        {canViewAmounts ? (
+                          <TableCell>
+                            <Input
+                              disabled={!row.paid}
+                              value={String(row.paidAmount)}
+                              onChange={(event) => {
+                                const value = normalizeMoney(
+                                  event.target.value,
+                                );
+                                setGroupRows((prev) =>
+                                  prev.map((item) =>
+                                    item.studentId === row.studentId
+                                      ? {
+                                          ...item,
+                                          paidAmount: value,
+                                          status:
+                                            value >= item.amount
+                                              ? "PAID"
+                                              : value > 0
+                                                ? "PARTIAL"
+                                                : "UNPAID",
+                                          paid: value > 0,
+                                        }
+                                      : item,
+                                  ),
+                                );
+                              }}
+                            />
+                          </TableCell>
+                        ) : null}
+                        {canViewAmounts ? (
+                          <TableCell className="text-destructive">
+                            {formatCurrency(
+                              Math.max(0, row.amount - row.paidAmount),
+                            )}
+                          </TableCell>
+                        ) : null}
+                        <TableCell>
+                          <StatusBadge status={statusForBadge(row.status)} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
+            </div>
+          )}
 
-              <div className="space-y-1">
-                <Label htmlFor="billingMonth">Billing month</Label>
-                <Input
-                  id="billingMonth"
-                  type="date"
-                  value={formData.billingMonth}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      billingMonth: toYMD(e.target.value),
-                    }))
-                  }
-                />
-              </div>
+          <DialogFooter>
+            {groupStep === 2 ? (
+              <Button variant="outline" onClick={() => setGroupStep(1)}>
+                Orqaga
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={() => setGroupModalOpen(false)}>
+              Bekor qilish
+            </Button>
+            {groupStep === 1 ? (
+              <Button
+                onClick={loadGroupPaymentRows}
+                disabled={!groupFlow.groupId || isLoadingGroupRows}
+              >
+                {isLoadingGroupRows ? "Yuklanmoqda..." : "Davom etish"}
+              </Button>
+            ) : (
+              <Button onClick={saveGroupPayments} disabled={isSaving}>
+                {isSaving ? "Saqlanmoqda..." : "Saqlash"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="amount">Amount</Label>
-                  <Input
-                    id="amount"
-                    value={formData.amount}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        amount: e.target.value,
-                      }))
-                    }
-                  />
+      <Dialog
+        open={smsModal.open}
+        onOpenChange={(open) => setSmsModal((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>SMS yuborish - {smsModal.studentName}</DialogTitle>
+            <DialogDescription>
+              Xabar uzunligi: {smsModal.message.length}/160
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label>Kimga</Label>
+              <Input
+                value={smsModal.parentPhone}
+                onChange={(event) =>
+                  setSmsModal((prev) => ({
+                    ...prev,
+                    parentPhone: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Xabar</Label>
+              <Textarea
+                maxLength={160}
+                rows={6}
+                value={smsModal.message}
+                onChange={(event) =>
+                  setSmsModal((prev) => ({
+                    ...prev,
+                    message: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSmsModal((prev) => ({ ...prev, open: false }))}
+            >
+              Bekor qilish
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={sendSingleSms}
+              disabled={isSendingSms}
+            >
+              {isSendingSms ? "Yuborilmoqda..." : "Yuborish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={historyModal.open}
+        onOpenChange={(open) => setHistoryModal((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>SMS tarixi - {historyModal.studentName}</DialogTitle>
+          </DialogHeader>
+
+          {historyModal.loading ? (
+            <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+          ) : historyModal.rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              SMS tarixi topilmadi
+            </p>
+          ) : (
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {historyModal.rows.map((row) => (
+                <div key={row.id} className="rounded border p-2 text-sm">
+                  <p className="font-medium">
+                    {new Date(row.sentAt).toLocaleString("uz-UZ")}
+                  </p>
+                  <p className="text-muted-foreground">{row.parentPhone}</p>
+                  <p>{row.message}</p>
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="paidAmount">Paid amount</Label>
-                  <Input
-                    id="paidAmount"
-                    value={formData.paidAmount}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        paidAmount: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="notes">Notes</Label>
-                <Input
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, notes: e.target.value }))
-                  }
-                />
-              </div>
-
-              {Object.keys(fieldErrors).map((key) => (
-                <p key={key} className="text-xs text-destructive">
-                  {fieldErrors[key]}
-                </p>
               ))}
             </div>
+          )}
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Bekor qilish
-              </Button>
-              <Button onClick={submitForm} disabled={isSaving}>
-                {isSaving ? (
-                  <CircleAlert className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <CheckCircle className="mr-2 size-4" />
-                )}
-                Saqlash
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setHistoryModal((prev) => ({ ...prev, open: false }))
+              }
+            >
+              Yopish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -373,8 +373,18 @@ export const groupsAPI = {
 };
 
 export const smsAPI = {
-  send: (data: { studentId: string; parentPhone: string; message: string }) =>
-    apiPost("/api/sms/send", data),
+  send: (data: {
+    studentId: string;
+    parentPhone: string;
+    message: string;
+    type?: string;
+  }) => apiPost("/api/sms/send", data),
+  history: (params: { studentId: string; limit?: number }) => {
+    const search = new URLSearchParams();
+    search.set("studentId", params.studentId);
+    if (params.limit) search.set("limit", String(params.limit));
+    return apiGet(`/api/sms/send?${search.toString()}`);
+  },
 };
 
 export const lessonsAPI = {
@@ -393,14 +403,35 @@ export const paymentsAPI = {
   list: (params?: {
     groupId?: string;
     billingMonth?: string;
+    month?: string;
     status?: string;
   }) => {
     const search = new URLSearchParams();
     if (params?.groupId) search.set("groupId", params.groupId);
     if (params?.billingMonth) search.set("billingMonth", params.billingMonth);
+    if (params?.month) search.set("month", params.month);
     if (params?.status) search.set("status", params.status);
     const query = search.toString();
     return apiGet(`/api/payments${query ? `?${query}` : ""}`);
+  },
+
+  bulk: (data: {
+    groupId: string;
+    billingMonth: string;
+    payments: Array<{
+      studentId: string;
+      amount: number;
+      paidAmount?: number;
+      status?: string;
+      notes?: string | null;
+    }>;
+  }) => apiPost("/api/payments/bulk", data),
+
+  overdue: (params?: { groupId?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.groupId) search.set("groupId", params.groupId);
+    const query = search.toString();
+    return apiGet(`/api/payments/overdue${query ? `?${query}` : ""}`);
   },
 
   summary: (params: { groupId: string; billingMonth: string }) => {

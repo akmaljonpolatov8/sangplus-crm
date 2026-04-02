@@ -190,8 +190,9 @@ model SmsLog {
   studentId   String
   parentPhone String
   message     String
+  type        String   @default("PAYMENT_REMINDER")
   sentAt      DateTime @default(now())
-  status      String   @default("SENT")
+  status      String   @default("PENDING")
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([studentId, sentAt])

@@ -20,6 +20,10 @@ const paymentsQuerySchema = z.object({
   studentId: z.string().cuid().optional(),
   groupId: z.string().cuid().optional(),
   status: z.nativeEnum(PaymentStatus).optional(),
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/)
+    .optional(),
   billingMonth: z.string().date().optional(),
   overdueOnly: z
     .enum(["true", "false"])
@@ -44,17 +48,154 @@ export async function GET(request: NextRequest) {
       studentId: request.nextUrl.searchParams.get("studentId") ?? undefined,
       groupId: request.nextUrl.searchParams.get("groupId") ?? undefined,
       status: request.nextUrl.searchParams.get("status") ?? undefined,
+      month: request.nextUrl.searchParams.get("month") ?? undefined,
       billingMonth:
         request.nextUrl.searchParams.get("billingMonth") ?? undefined,
       overdueOnly: request.nextUrl.searchParams.get("overdueOnly") ?? undefined,
     });
 
+    const normalizedMonth = query.month
+      ? normalizeBillingMonth(`${query.month}-01`)
+      : query.billingMonth
+        ? normalizeBillingMonth(query.billingMonth)
+        : undefined;
+
+    if (query.groupId && normalizedMonth && query.month) {
+      const dueDate = getPaymentDueDate(normalizedMonth);
+      const monthEnd = new Date(
+        Date.UTC(
+          normalizedMonth.getUTCFullYear(),
+          normalizedMonth.getUTCMonth() + 1,
+          0,
+        ),
+      );
+
+      const memberships = await db.groupStudent.findMany({
+        where: {
+          groupId: query.groupId,
+          joinedAt: { lte: monthEnd },
+          OR: [{ leftAt: null }, { leftAt: { gte: normalizedMonth } }],
+          student: {
+            status: {
+              not: "INACTIVE",
+            },
+          },
+        },
+        select: {
+          studentId: true,
+          student: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              parentPhone: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              name: true,
+              monthlyFee: true,
+            },
+          },
+        },
+        orderBy: [
+          { student: { lastName: "asc" } },
+          { student: { firstName: "asc" } },
+        ],
+      });
+
+      const existingPayments = await db.payment.findMany({
+        where: {
+          groupId: query.groupId,
+          billingMonth: normalizedMonth,
+          studentId: {
+            in: memberships.map((membership) => membership.studentId),
+          },
+        },
+        select: {
+          id: true,
+          studentId: true,
+          amount: true,
+          paidAmount: true,
+          status: true,
+          billingMonth: true,
+          dueDate: true,
+          notes: true,
+          paidAt: true,
+        },
+      });
+
+      const paymentByStudentId = new Map(
+        existingPayments.map((payment) => [payment.studentId, payment]),
+      );
+
+      const rows = memberships
+        .map((membership) => {
+          const payment = paymentByStudentId.get(membership.studentId);
+          const amount = payment
+            ? toNumberAmount(
+                payment.amount,
+                Number(membership.group.monthlyFee),
+              )
+            : Number(membership.group.monthlyFee);
+          const paidAmount = payment
+            ? toNumberAmount(payment.paidAmount, 0)
+            : 0;
+          const resolvedDueDate = payment?.dueDate ?? dueDate;
+          const status = calculatePaymentStatus({
+            amount,
+            paidAmount,
+            dueDate: resolvedDueDate,
+          });
+
+          const payload = {
+            id: payment?.id ?? `${membership.student.id}-${query.groupId}`,
+            paymentId: payment?.id ?? null,
+            billingMonth: normalizedMonth,
+            dueDate: resolvedDueDate,
+            status,
+            amount,
+            paidAmount,
+            notes: payment?.notes ?? null,
+            paidAt: payment?.paidAt ?? null,
+            student: membership.student,
+            group: {
+              id: membership.group.id,
+              name: membership.group.name,
+            },
+          };
+
+          if (actor.role === Role.OWNER) {
+            return payload;
+          }
+
+          return {
+            id: payload.id,
+            paymentId: payload.paymentId,
+            billingMonth: payload.billingMonth,
+            dueDate: payload.dueDate,
+            status: payload.status,
+            student: payload.student,
+            group: payload.group,
+          };
+        })
+        .filter((payment) =>
+          query.overdueOnly
+            ? payment.status === PaymentStatus.OVERDUE
+            : query.status
+              ? payment.status === query.status
+              : true,
+        );
+
+      return jsonSuccess(rows, "Group payments fetched successfully");
+    }
+
     const paymentWhere = {
       studentId: query.studentId,
       groupId: query.groupId,
-      ...(query.billingMonth
-        ? { billingMonth: normalizeBillingMonth(query.billingMonth) }
-        : {}),
+      ...(normalizedMonth ? { billingMonth: normalizedMonth } : {}),
     };
 
     if (actor.role === Role.OWNER) {
@@ -97,10 +238,7 @@ export async function GET(request: NextRequest) {
               : true,
         );
 
-      return jsonSuccess(
-        serializedPayments,
-        "Payments fetched successfully",
-      );
+      return jsonSuccess(serializedPayments, "Payments fetched successfully");
     }
 
     const payments = await db.payment.findMany({
@@ -140,10 +278,7 @@ export async function GET(request: NextRequest) {
             : true,
       );
 
-    return jsonSuccess(
-      serializedPayments,
-      "Payments fetched successfully",
-    );
+    return jsonSuccess(serializedPayments, "Payments fetched successfully");
   } catch (error) {
     return handleApiError(error, "Payments API error");
   }
@@ -186,7 +321,10 @@ export async function POST(request: Request) {
     const paidAmount = body.paidAmount ?? 0;
 
     if (paidAmount > amount) {
-      return jsonError(400, "Paid amount cannot be greater than the total amount");
+      return jsonError(
+        400,
+        "Paid amount cannot be greater than the total amount",
+      );
     }
 
     assertValidPaymentAmounts(amount, paidAmount);

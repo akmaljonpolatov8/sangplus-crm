@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react/no-unescaped-entities */
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6,6 +7,7 @@ import { MessageSquareMore } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,6 +66,15 @@ interface DebtorItem {
   amount?: number;
 }
 
+interface SmsHistoryItem {
+  id: string;
+  message: string;
+  parentPhone: string;
+  type: string;
+  status: string;
+  sentAt: string;
+}
+
 interface SmsModalState {
   isOpen: boolean;
   studentId: string;
@@ -71,6 +82,8 @@ interface SmsModalState {
   parentPhone: string;
   message: string;
 }
+
+const CENTER_PHONE = process.env.NEXT_PUBLIC_CENTER_PHONE || "+998900000000";
 
 function formatMonthLabel(value: string): string {
   const date = new Date(value);
@@ -83,13 +96,17 @@ function formatMonthLabel(value: string): string {
 
 function buildSmsTemplate(item: DebtorItem): string {
   const parentName = item.parentName?.trim() || "ota-ona";
-  const monthLabel = formatMonthLabel(item.billingMonth);
+  const billingMonthLabel = formatMonthLabel(item.billingMonth);
+  const currentMonthLabel = formatMonthLabel(new Date().toISOString());
   const amountLabel =
     item.amount != null
       ? formatCurrency(item.amount).replace(" so'm", "")
       : "belgilangan";
 
-  return `Hurmatli ${parentName}! Farzandingiz ${item.studentName}ning ${monthLabel} oyi uchun ${amountLabel} so'm to'lovi hali amalga oshirilmagan.\nIltimos, imkon qadar tezroq to'lovni amalga oshiring.\nSangPlus o'quv markazi.`;
+  return `Assalomu alaykum, ${parentName}!\nFarzandingiz ${item.studentName}ning ${billingMonthLabel} oyi uchun ${amountLabel} so'm to'lovi amalga oshirilmagan.\nIltimos, to'lovni ${currentMonthLabel} oyining oxirigacha amalga oshiring.\nSangPlus o'quv markazi. Tel: ${CENTER_PHONE}`.slice(
+    0,
+    160,
+  );
 }
 
 export default function DebtorsPage() {
@@ -105,6 +122,9 @@ export default function DebtorsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSendingSms, setIsSendingSms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
+
   const [smsModal, setSmsModal] = useState<SmsModalState>({
     isOpen: false,
     studentId: "",
@@ -112,6 +132,16 @@ export default function DebtorsPage() {
     parentPhone: "",
     message: "",
   });
+
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [historyModal, setHistoryModal] = useState({
+    open: false,
+    studentName: "",
+    rows: [] as SmsHistoryItem[],
+    loading: false,
+  });
+
+  const [sentAtMap, setSentAtMap] = useState<Record<string, string>>({});
 
   const load = async () => {
     setIsLoading(true);
@@ -127,6 +157,7 @@ export default function DebtorsPage() {
 
       setGroups(extractList<GroupItem>(groupsData, ["groups"]));
       setDebtors(extractList<DebtorItem>(debtorsData, ["debtors"]));
+      setSelectedStudentIds([]);
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -158,6 +189,28 @@ export default function DebtorsPage() {
     );
   }, [debtors, search]);
 
+  const selectedRows = useMemo(
+    () =>
+      filtered.filter((item) => selectedStudentIds.includes(item.studentId)),
+    [filtered, selectedStudentIds],
+  );
+
+  const toggleStudent = (studentId: string, checked: boolean) => {
+    setSelectedStudentIds((prev) =>
+      checked
+        ? [...new Set([...prev, studentId])]
+        : prev.filter((id) => id !== studentId),
+    );
+  };
+
+  const toggleAllVisible = (checked: boolean) => {
+    if (!checked) {
+      setSelectedStudentIds([]);
+      return;
+    }
+    setSelectedStudentIds(filtered.map((item) => item.studentId));
+  };
+
   const openSmsModal = (item: DebtorItem) => {
     setSmsModal({
       isOpen: true,
@@ -173,13 +226,20 @@ export default function DebtorsPage() {
 
     setIsSendingSms(true);
     try {
-      await smsAPI.send({
+      const result = (await smsAPI.send({
         studentId: smsModal.studentId,
         parentPhone: smsModal.parentPhone.trim(),
         message: smsModal.message.trim(),
-      });
+        type: "PAYMENT_REMINDER",
+      })) as { sentAt?: string };
 
-      toast({ title: "SMS yuborildi!" });
+      toast({ title: "SMS yuborildi! ✓" });
+      if (result?.sentAt) {
+        setSentAtMap((prev) => ({
+          ...prev,
+          [smsModal.studentId]: result.sentAt!,
+        }));
+      }
       setSmsModal((prev) => ({ ...prev, isOpen: false }));
       await load();
     } catch (err) {
@@ -193,7 +253,71 @@ export default function DebtorsPage() {
     }
   };
 
+  const sendBulkSms = async () => {
+    if (selectedRows.length === 0) return;
+
+    setIsSendingSms(true);
+    setBulkProgress({ done: 0, total: selectedRows.length });
+
+    try {
+      for (let index = 0; index < selectedRows.length; index += 1) {
+        const item = selectedRows[index];
+        const result = (await smsAPI.send({
+          studentId: item.studentId,
+          parentPhone: item.parentPhone || "",
+          message: buildSmsTemplate(item),
+          type: "PAYMENT_REMINDER",
+        })) as { sentAt?: string };
+
+        if (result?.sentAt) {
+          setSentAtMap((prev) => ({
+            ...prev,
+            [item.studentId]: result.sentAt!,
+          }));
+        }
+
+        setBulkProgress({ done: index + 1, total: selectedRows.length });
+      }
+
+      toast({ title: "Tanlanganlarga SMS yuborildi!" });
+      setBulkModalOpen(false);
+      await load();
+    } catch (err) {
+      toast({
+        title: "Bulk SMS yuborishda xatolik",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  const openSmsHistory = async (item: DebtorItem) => {
+    setHistoryModal({
+      open: true,
+      studentName: item.studentName,
+      rows: [],
+      loading: true,
+    });
+    try {
+      const response = await smsAPI.history({
+        studentId: item.studentId,
+        limit: 50,
+      });
+      setHistoryModal((prev) => ({
+        ...prev,
+        rows: extractList<SmsHistoryItem>(response, ["history"]),
+      }));
+    } finally {
+      setHistoryModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
   if (!canAccess) return null;
+
+  const allChecked =
+    filtered.length > 0 && selectedStudentIds.length === filtered.length;
 
   return (
     <div className="min-h-screen">
@@ -239,6 +363,20 @@ export default function DebtorsPage() {
           </CardContent>
         </Card>
 
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            Tanlanganlar: {selectedStudentIds.length}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={selectedStudentIds.length === 0 || isSendingSms}
+            onClick={() => setBulkModalOpen(true)}
+          >
+            Tanlanganlarga SMS yuborish
+          </Button>
+        </div>
+
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
         ) : filtered.length === 0 ? (
@@ -248,11 +386,17 @@ export default function DebtorsPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="overflow-x-auto rounded-2xl border border-border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>O&apos;quvchi ismi</TableHead>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={allChecked}
+                      onCheckedChange={(v) => toggleAllVisible(Boolean(v))}
+                    />
+                  </TableHead>
+                  <TableHead>O'quvchi ismi</TableHead>
                   <TableHead>Guruh</TableHead>
                   <TableHead>Ota-ona telefoni</TableHead>
                   {canViewAmounts ? (
@@ -265,8 +409,22 @@ export default function DebtorsPage() {
               <TableBody>
                 {filtered.map((item) => (
                   <TableRow key={item.paymentId}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedStudentIds.includes(item.studentId)}
+                        onCheckedChange={(v) =>
+                          toggleStudent(item.studentId, Boolean(v))
+                        }
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
-                      {item.studentName}
+                      <button
+                        type="button"
+                        className="text-left hover:underline"
+                        onClick={() => openSmsHistory(item)}
+                      >
+                        {item.studentName}
+                      </button>
                     </TableCell>
                     <TableCell>{item.groupName}</TableCell>
                     <TableCell>
@@ -293,10 +451,18 @@ export default function DebtorsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {item.smsSentToday ? (
+                        {item.smsSentToday || sentAtMap[item.studentId] ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600">
                             <MessageSquareMore className="size-3" />
-                            Bugun yuborilgan
+                            SMS yuborildi{" "}
+                            {sentAtMap[item.studentId]
+                              ? new Date(
+                                  sentAtMap[item.studentId],
+                                ).toLocaleTimeString("uz-UZ", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "bugun"}
                           </span>
                         ) : null}
                         <Button
@@ -304,7 +470,7 @@ export default function DebtorsPage() {
                           className="bg-emerald-600 hover:bg-emerald-700"
                           onClick={() => openSmsModal(item)}
                         >
-                          SMS yuborish
+                          SMS
                         </Button>
                       </div>
                     </TableCell>
@@ -324,15 +490,15 @@ export default function DebtorsPage() {
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>SMS yuborish</DialogTitle>
+            <DialogTitle>SMS yuborish - {smsModal.studentName}</DialogTitle>
             <DialogDescription>
-              Ota-ona telefonini tekshirib, xabar matnini yuboring.
+              Xabar uzunligi: {smsModal.message.length}/160
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
             <div className="space-y-1">
-              <Label htmlFor="sms-phone">Ota-ona telefoni</Label>
+              <Label htmlFor="sms-phone">Kimga</Label>
               <Input
                 id="sms-phone"
                 placeholder="+998XXXXXXXXX"
@@ -351,6 +517,7 @@ export default function DebtorsPage() {
               <Textarea
                 id="sms-message"
                 rows={6}
+                maxLength={160}
                 value={smsModal.message}
                 onChange={(event) =>
                   setSmsModal((prev) => ({
@@ -378,6 +545,80 @@ export default function DebtorsPage() {
               disabled={isSendingSms}
             >
               {isSendingSms ? "Yuborilmoqda..." : "Yuborish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkModalOpen} onOpenChange={setBulkModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bulk SMS yuborish</DialogTitle>
+            <DialogDescription>
+              {selectedRows.length} ta ota-onaga SMS yuboriladi
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            {isSendingSms
+              ? `${bulkProgress.done} / ${bulkProgress.total} yuborildi`
+              : "Tasdiqlasangiz yuborish boshlanadi."}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkModalOpen(false)}
+              disabled={isSendingSms}
+            >
+              Bekor qilish
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={sendBulkSms}
+              disabled={isSendingSms || selectedRows.length === 0}
+            >
+              {isSendingSms ? "Yuborilmoqda..." : "Yuborish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={historyModal.open}
+        onOpenChange={(open) => setHistoryModal((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>SMS tarixi - {historyModal.studentName}</DialogTitle>
+          </DialogHeader>
+
+          {historyModal.loading ? (
+            <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
+          ) : historyModal.rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              SMS tarixi topilmadi
+            </p>
+          ) : (
+            <div className="max-h-72 space-y-2 overflow-y-auto">
+              {historyModal.rows.map((row) => (
+                <div key={row.id} className="rounded border p-2 text-sm">
+                  <p className="font-medium">
+                    {new Date(row.sentAt).toLocaleString("uz-UZ")}
+                  </p>
+                  <p className="text-muted-foreground">{row.parentPhone}</p>
+                  <p>{row.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setHistoryModal((prev) => ({ ...prev, open: false }))
+              }
+            >
+              Yopish
             </Button>
           </DialogFooter>
         </DialogContent>
