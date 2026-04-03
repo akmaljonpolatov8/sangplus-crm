@@ -151,7 +151,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireUser(request, [Role.OWNER, Role.MANAGER]);
+    await requireUser(request, [Role.OWNER]);
 
     const { id } = paramsSchema.parse(await params);
 
@@ -161,21 +161,32 @@ export async function DELETE(
     });
 
     if (!group) {
-      return jsonError(404, "Group not found");
+      return jsonError(404, "Guruh topilmadi");
     }
 
-    await db.group.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    await db.$transaction([
+      db.attendance.deleteMany({
+        where: {
+          lesson: {
+            groupId: id,
+          },
+        },
+      }),
+      db.lessonSession.deleteMany({
+        where: { groupId: id },
+      }),
+      db.payment.deleteMany({
+        where: { groupId: id },
+      }),
+      db.groupStudent.deleteMany({
+        where: { groupId: id },
+      }),
+      db.group.delete({
+        where: { id },
+      }),
+    ]);
 
-    return jsonSuccess(
-      {
-        id,
-        deleted: true,
-      },
-      "Group deleted successfully",
-    );
+    return jsonSuccess({ success: true }, "Guruh o'chirildi");
   } catch (error) {
     return handleApiError(error, "Group detail API error");
   }

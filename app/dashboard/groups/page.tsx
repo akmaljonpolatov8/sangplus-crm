@@ -30,7 +30,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, CircleAlert } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { MoreHorizontal, Pencil, CircleAlert, Trash2 } from "lucide-react";
 import {
   ApiClientError,
   extractList,
@@ -43,6 +52,7 @@ import {
   clearLegacyDashboardCache,
   formatCurrency,
 } from "@/lib-frontend/utils";
+import { toast } from "@/hooks/use-toast";
 
 interface GroupRecord {
   id: string;
@@ -110,10 +120,13 @@ export default function GroupsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [formData, setFormData] = useState<GroupForm>(initialForm);
+  const [groupToDelete, setGroupToDelete] = useState<GroupRecord | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -227,8 +240,10 @@ export default function GroupsPage() {
 
       if (formData.id) {
         await groupsAPI.update(formData.id, payload);
+        toast({ title: "Guruh yangilandi ✓" });
       } else {
         await groupsAPI.create(payload);
+        toast({ title: "Yangi guruh qo'shildi" });
       }
 
       setIsDialogOpen(false);
@@ -244,6 +259,34 @@ export default function GroupsPage() {
       setFormError(getApiErrorMessage(err));
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const openDeleteConfirm = (group: GroupRecord) => {
+    setGroupToDelete(group);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const deleteGroup = async () => {
+    if (!groupToDelete?.id) return;
+
+    setIsDeleting(true);
+    try {
+      await groupsAPI.delete(groupToDelete.id);
+      setGroups((prev) => prev.filter((item) => item.id !== groupToDelete.id));
+      setIsDeleteConfirmOpen(false);
+      setGroupToDelete(null);
+      toast({
+        title: "Guruh muvaffaqiyatli o'chirildi ✓",
+      });
+    } catch (err) {
+      toast({
+        title: "Guruhni o'chirib bo'lmadi",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -328,6 +371,13 @@ export default function GroupsPage() {
                 <DropdownMenuItem onClick={() => openEdit(group)}>
                   <Pencil className="mr-2 size-4" />
                   Tahrirlash
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => openDeleteConfirm(group)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 size-4" />
+                  O'chirish
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -558,6 +608,52 @@ export default function GroupsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={(open) => {
+          setIsDeleteConfirmOpen(open);
+          if (!open) {
+            setGroupToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="flex items-center gap-2 font-medium text-foreground">
+                <CircleAlert className="size-4 text-destructive" />
+                Ogohlantirish
+              </span>
+              <span className="block">
+                &laquo;{groupToDelete?.name || "Tanlangan guruh"}&raquo;
+                guruhini o'chirishni xohlaysizmi?
+              </span>
+              <span className="block">
+                Bu guruhga tegishli barcha darslar, davomat va to'lov
+                ma'lumotlari ham o'chiriladi.
+              </span>
+              <span className="block font-semibold text-destructive">
+                Bu amalni qaytarib bo'lmaydi!
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>
+              Bekor qilish
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              onClick={deleteGroup}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Ha, o'chirish
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

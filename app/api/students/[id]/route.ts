@@ -173,31 +173,33 @@ export async function DELETE(
       return jsonError(404, "Student not found");
     }
 
-    await db.$transaction(async (tx) => {
-      await tx.groupStudent.deleteMany({
+    await db.$transaction([
+      db.attendance.deleteMany({
         where: {
           studentId: id,
         },
-      });
-
-      await tx.attendance.deleteMany({
+      }),
+      db.payment.deleteMany({
         where: {
           studentId: id,
         },
-      });
-
-      await tx.payment.deleteMany({
+      }),
+      db.smsLog.deleteMany({
         where: {
           studentId: id,
         },
-      });
-
-      await tx.student.delete({
+      }),
+      db.groupStudent.deleteMany({
+        where: {
+          studentId: id,
+        },
+      }),
+      db.student.delete({
         where: {
           id,
         },
-      });
-    });
+      }),
+    ]);
 
     return jsonSuccess(
       {
