@@ -709,10 +709,10 @@ export default function PaymentsPage() {
   if (!canAccess) return null;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen w-full">
       <DashboardHeader title="To'lovlar" />
 
-      <div className="space-y-6 p-6">
+      <div className="w-full space-y-4 px-4 py-4 sm:space-y-6 sm:p-6">
         {error && (
           <Card className="border-destructive/40 bg-destructive/5">
             <CardContent className="p-4 text-sm text-destructive">
@@ -723,13 +723,13 @@ export default function PaymentsPage() {
 
         {showOverdueBanner ? (
           <Card className="border-destructive/40 bg-destructive/10">
-            <CardContent className="flex flex-col items-start justify-between gap-3 p-4 md:flex-row md:items-center">
-              <p className="text-sm text-destructive">
+            <CardContent className="flex flex-col items-start justify-between gap-2 sm:gap-3 p-4 sm:flex-row sm:items-center">
+              <p className="text-xs sm:text-sm text-destructive">
                 ⚠️ {overdueRows.length} ta o'quvchi {monthLabel(selectedMonth)}{" "}
                 oyi uchun to'lov qilmagan! Ota-onalarga SMS yuborish
               </p>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
                 onClick={sendOverdueBulkSms}
                 disabled={isSendingSms}
               >
@@ -740,17 +740,17 @@ export default function PaymentsPage() {
         ) : null}
 
         <Card>
-          <CardHeader>
-            <CardTitle>Filterlar</CardTitle>
+          <CardHeader className="px-4 py-3 sm:px-6 sm:py-4">
+            <CardTitle className="text-base sm:text-lg">Filterlar</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
+          <CardContent className="grid gap-3 px-4 pb-4 sm:px-6 sm:pb-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
-              <Label>Guruh</Label>
+              <Label className="text-xs sm:text-sm">Guruh</Label>
               <Select
                 value={selectedGroupId}
                 onValueChange={(value) => updateFilters({ groupId: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Guruh" />
                 </SelectTrigger>
                 <SelectContent>
@@ -765,23 +765,24 @@ export default function PaymentsPage() {
             </div>
 
             <div className="space-y-1">
-              <Label>Oy</Label>
+              <Label className="text-xs sm:text-sm">Oy</Label>
               <Input
                 type="month"
                 value={selectedMonth}
                 onChange={(event) =>
                   updateFilters({ month: event.target.value })
                 }
+                className="text-sm"
               />
             </div>
 
             <div className="space-y-1">
-              <Label>Holat</Label>
+              <Label className="text-xs sm:text-sm">Holat</Label>
               <Select
                 value={selectedStatus}
                 onValueChange={(value) => updateFilters({ status: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Holat" />
                 </SelectTrigger>
                 <SelectContent>
@@ -796,7 +797,7 @@ export default function PaymentsPage() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Kim to'lagan</CardTitle>
@@ -857,11 +858,11 @@ export default function PaymentsPage() {
           </Card>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="outline" onClick={openCreateModal}>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
+          <Button variant="outline" onClick={openCreateModal} className="w-full sm:w-auto">
             + To'lov qo'shish
           </Button>
-          <Button variant="outline" onClick={startGroupFlow}>
+          <Button variant="outline" onClick={startGroupFlow} className="w-full sm:w-auto">
             + Guruh to'lovi
           </Button>
         </div>
@@ -963,7 +964,7 @@ export default function PaymentsPage() {
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-full max-h-[90vh] overflow-y-auto sm:max-w-md rounded-lg sm:rounded-lg">
           <DialogHeader>
             <DialogTitle>
               {paymentForm.id ? "To'lovni tahrirlash" : "To'lov qo'shish"}
@@ -1122,7 +1123,7 @@ export default function PaymentsPage() {
       </Dialog>
 
       <Dialog open={groupModalOpen} onOpenChange={setGroupModalOpen}>
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="w-full max-h-[90vh] overflow-y-auto sm:max-w-4xl rounded-lg sm:rounded-lg">
           <DialogHeader>
             <DialogTitle>Guruh to'lovi</DialogTitle>
             <DialogDescription>
@@ -1313,7 +1314,7 @@ export default function PaymentsPage() {
         open={smsModal.open}
         onOpenChange={(open) => setSmsModal((prev) => ({ ...prev, open }))}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="w-full max-h-[90vh] overflow-y-auto sm:max-w-lg rounded-lg sm:rounded-lg">
           <DialogHeader>
             <DialogTitle>SMS yuborish - {smsModal.studentName}</DialogTitle>
             <DialogDescription>
@@ -1372,7 +1373,7 @@ export default function PaymentsPage() {
         open={historyModal.open}
         onOpenChange={(open) => setHistoryModal((prev) => ({ ...prev, open }))}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="w-full max-h-[90vh] overflow-y-auto sm:max-w-xl rounded-lg sm:rounded-lg">
           <DialogHeader>
             <DialogTitle>SMS tarixi - {historyModal.studentName}</DialogTitle>
           </DialogHeader>

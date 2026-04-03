@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Search, ChevronDown, Loader2 } from "lucide-react";
+import { Bell, Search, ChevronDown, Loader2, Menu } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ import {
   roleBadgeStyles,
 } from "@/lib-frontend/role-context";
 import { authAPI, getApiErrorMessage } from "@/lib-frontend/api-client";
+import { useSidebar } from "@/lib-frontend/sidebar-context";
 import Link from "next/link";
 
 interface DashboardHeaderProps {
@@ -36,6 +37,7 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ title }: DashboardHeaderProps) {
   const { role, userName, setUserName, isLoaded } = useRole();
+  const sidebar = useSidebar();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPasswordOpen, setIsPasswordOpen] = useState(false);
 
@@ -153,10 +155,24 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-sm">
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 sm:px-6 backdrop-blur-sm">
         <div className="flex items-center gap-4">
+          {/* Hamburger Menu - Mobile Only */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => sidebar.toggle()}
+            className="lg:hidden"
+          >
+            <Menu className="size-5 text-muted-foreground" />
+          </Button>
+
+          <h1 className="text-base sm:text-xl font-semibold text-foreground">
+            {title}
+          </h1>
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* Search - only for owner and manager */}
           {isLoaded && (role === "owner" || role === "manager") && (
             <div className="relative hidden md:block">
@@ -180,7 +196,10 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-3 px-3">
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3"
+              >
                 <div className="flex size-8 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
                   {userName
                     .split(" ")

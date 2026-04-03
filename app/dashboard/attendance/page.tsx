@@ -316,12 +316,12 @@ export default function AttendancePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F1117] text-slate-100">
+    <div className="min-h-screen w-full bg-[#0F1117] text-slate-100">
       <DashboardHeader
         title={role === "teacher" ? "Davomat" : "Davomat boshqaruvi"}
       />
 
-      <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 pb-28 md:px-6">
+      <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 pb-32 sm:space-y-6 sm:px-6 sm:py-6">
         {error && (
           <div className="rounded-xl border border-[#FF3B30]/40 bg-[#FF3B30]/10 p-3 text-sm text-[#FF8A80]">
             {error}
@@ -337,36 +337,60 @@ export default function AttendancePage() {
         {isLoading && <p className="text-sm text-slate-400">Yuklanmoqda...</p>}
 
         <Card className="border-white/10 bg-[#121725] shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
-          <CardContent className="space-y-4 p-5 md:p-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <CardContent className="space-y-4 p-4 sm:p-6">
+            <div className="flex flex-col gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
                   Davomat paneli
                 </p>
-                <h2 className="mt-1 text-xl font-semibold text-white md:text-2xl">
+                <h2 className="mt-1 text-lg sm:text-2xl font-semibold text-white">
                   {selectedGroupName}
                 </h2>
-                <p className="mt-1 text-sm text-slate-400">{formattedDate}</p>
+                <p className="mt-1 text-xs sm:text-sm text-slate-400">{formattedDate}</p>
                 <p className="mt-2 text-xs tracking-wide text-slate-500">
                   Belgilanganlar: {completion.completed}/{completion.total}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:w-auto">
-                <div className="rounded-xl border border-[#00C853]/35 bg-[#00C853]/10 px-4 py-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
+                <div className="rounded-xl border border-[#00C853]/35 bg-[#00C853]/10 px-3 sm:px-4 py-2 sm:py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[#7EF9A3]">
+                    Jami
+                  </p>
+                  <p className="mt-1 text-lg sm:text-xl font-semibold text-white">
+                    {stats.total}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#00C853]/35 bg-[#00C853]/10 px-3 sm:px-4 py-2 sm:py-3">
                   <p className="text-xs uppercase tracking-[0.16em] text-[#7EF9A3]">
                     Keldi
                   </p>
-                  <p className="mt-1 text-xl font-semibold text-white">
+                  <p className="mt-1 text-lg sm:text-xl font-semibold text-white">
                     {stats.present}
                   </p>
                 </div>
-                <div className="rounded-xl border border-[#FF3B30]/35 bg-[#FF3B30]/10 px-4 py-3">
+                <div className="rounded-xl border border-[#FF3B30]/35 bg-[#FF3B30]/10 px-3 sm:px-4 py-2 sm:py-3">
                   <p className="text-xs uppercase tracking-[0.16em] text-[#FF9C95]">
                     Kelmadi
                   </p>
-                  <p className="mt-1 text-xl font-semibold text-white">
+                  <p className="mt-1 text-lg sm:text-xl font-semibold text-white">
                     {stats.absent}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#FFB300]/35 bg-[#FFB300]/10 px-3 sm:px-4 py-2 sm:py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[#FFD54F]">
+                    Kechikdi
+                  </p>
+                  <p className="mt-1 text-lg sm:text-xl font-semibold text-white">
+                    {stats.late}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#2979FF]/35 bg-[#2979FF]/10 px-3 sm:px-4 py-2 sm:py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-[#64B5F6]">
+                    Sababli
+                  </p>
+                  <p className="mt-1 text-lg sm:text-xl font-semibold text-white">
+                    {stats.excused}
                   </p>
                 </div>
               </div>
@@ -385,7 +409,7 @@ export default function AttendancePage() {
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-400">
                   Guruh
@@ -394,7 +418,7 @@ export default function AttendancePage() {
                   value={groupId}
                   onValueChange={(value) => updateParams({ groupId: value })}
                 >
-                  <SelectTrigger className="h-11 border-white/12 bg-[#0B0F1A] text-slate-100 transition-all duration-200 ease-in-out hover:border-white/30">
+                  <SelectTrigger className="h-11 w-full border-white/12 bg-[#0B0F1A] text-slate-100 text-sm transition-all duration-200 ease-in-out hover:border-white/30">
                     <SelectValue placeholder="Guruhni tanlang" />
                   </SelectTrigger>
                   <SelectContent>
@@ -414,7 +438,7 @@ export default function AttendancePage() {
                 <Input
                   type="date"
                   value={lessonDate}
-                  className="h-11 border-white/12 bg-[#0B0F1A] text-slate-100 transition-all duration-200 ease-in-out hover:border-white/30"
+                  className="h-11 w-full border-white/12 bg-[#0B0F1A] text-slate-100 text-sm transition-all duration-200 ease-in-out hover:border-white/30"
                   onChange={(event) =>
                     updateParams({ lessonDate: event.target.value })
                   }
@@ -425,25 +449,25 @@ export default function AttendancePage() {
         </Card>
 
         <Card className="border-white/10 bg-[#121725]">
-          <CardHeader>
-            <CardTitle className="text-lg text-white">
+          <CardHeader className="px-4 py-3 sm:px-6 sm:py-4">
+            <CardTitle className="text-base sm:text-lg text-white">
               O&apos;quvchilar ro&apos;yxati
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 md:space-y-4">
+          <CardContent className="space-y-2 px-4 sm:space-y-3 sm:px-6">
             {students.map((student, index) => (
               <div
                 key={student.id}
-                className="rounded-2xl border border-white/10 bg-[#0B0F1A] p-4 transition-all duration-200 ease-in-out hover:border-white/20"
+                className="rounded-2xl border border-white/10 bg-[#0B0F1A] p-3 sm:p-4 transition-all duration-200 ease-in-out hover:border-white/20"
               >
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[#171D2B] text-sm font-semibold text-slate-100">
+                <div className="flex flex-col gap-3 sm:gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-[#171D2B] text-xs sm:text-sm font-semibold text-slate-100">
                       {getInitials(student.studentName)}
                     </div>
-                    <div>
-                      <p className="text-sm text-slate-500">#{index + 1}</p>
-                      <p className="text-base font-medium text-white">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-500">#{index + 1}</p>
+                      <p className="text-sm sm:text-base font-medium text-white truncate">
                         {student.studentName}
                       </p>
                       {student.status && (
@@ -465,15 +489,15 @@ export default function AttendancePage() {
                           type="button"
                           onClick={() => setStatus(student.id, option.value)}
                           className={cn(
-                            "inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-all duration-200 ease-in-out",
+                            "inline-flex items-center justify-center gap-1 sm:gap-2 rounded-full border px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all duration-200 ease-in-out",
                             isActive
                               ? optionTheme.activeClassName
                               : "border-white/14 bg-transparent text-slate-400 hover:border-white/35 hover:text-slate-200",
                           )}
                           aria-pressed={isActive}
                         >
-                          <span>{optionTheme.icon}</span>
-                          <span>{option.label}</span>
+                          <span className="text-sm">{optionTheme.icon}</span>
+                          <span className="hidden sm:inline">{option.label}</span>
                         </button>
                       );
                     })}
@@ -489,7 +513,7 @@ export default function AttendancePage() {
             <Button
               onClick={saveAttendance}
               disabled={isSaving || isLoading}
-              className="h-12 w-full rounded-xl bg-gradient-to-r from-[#00C853] to-[#00E676] text-base font-semibold text-white shadow-[0_12px_32px_rgba(0,200,83,0.34)] transition-all duration-200 ease-in-out hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+              className="h-11 sm:h-12 w-full rounded-xl bg-gradient-to-r from-[#00C853] to-[#00E676] text-base font-semibold text-white shadow-[0_12px_32px_rgba(0,200,83,0.34)] transition-all duration-200 ease-in-out hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isSaving
                 ? "Saqlanmoqda..."

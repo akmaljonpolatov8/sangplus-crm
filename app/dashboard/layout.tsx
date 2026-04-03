@@ -1,5 +1,6 @@
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { ProtectedRoute } from "@/lib-frontend/protected-route";
+import { SidebarProvider } from "@/lib-frontend/sidebar-context";
 
 export default function DashboardLayout({
   children,
@@ -8,10 +9,12 @@ export default function DashboardLayout({
 }) {
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
-        <DashboardSidebar />
-        <main className="pl-64">{children}</main>
-      </div>
+      <SidebarProvider>
+        <div className="min-h-screen bg-background">
+          <DashboardSidebar />
+          <main className="w-full lg:pl-64">{children}</main>
+        </div>
+      </SidebarProvider>
     </ProtectedRoute>
   );
 }

@@ -370,10 +370,10 @@ export default function StudentsPage() {
   if (!canAccess) return null;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen w-full">
       <DashboardHeader title="O'quvchilar" />
 
-      <div className="space-y-4 p-6">
+      <div className="w-full space-y-4 px-4 py-4 sm:p-6">
         {error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
             {error}
@@ -395,7 +395,7 @@ export default function StudentsPage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-full max-h-[90vh] overflow-y-auto sm:max-w-md rounded-lg sm:rounded-lg">
           <DialogHeader>
             <DialogTitle>
               {formData.id ? "O'quvchini tahrirlash" : "Yangi o'quvchi"}

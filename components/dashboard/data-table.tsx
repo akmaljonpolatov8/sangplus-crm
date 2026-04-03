@@ -85,13 +85,13 @@ export function DataTable<T extends { id: string | number }>({
   return (
     <div className={cn("space-y-4", className)}>
       {/* Toolbar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-center gap-3">
+      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 items-center gap-2 sm:gap-3">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
-              className="bg-secondary/50 pl-9 border-transparent focus-visible:border-border"
+              className="bg-secondary/50 pl-9 border-transparent focus-visible:border-border text-sm"
               value={query}
               onChange={(e) => {
                 const nextQuery = e.target.value;
@@ -101,7 +101,7 @@ export function DataTable<T extends { id: string | number }>({
             />
           </div>
           {showFilters && (
-            <Button variant="outline" size="default" className="gap-2">
+            <Button variant="outline" size="default" className="gap-2 flex-shrink-0">
               <Filter className="size-4" />
               <span className="hidden sm:inline">Filter</span>
             </Button>
@@ -109,15 +109,47 @@ export function DataTable<T extends { id: string | number }>({
         </div>
 
         {addButtonLabel && (
-          <Button onClick={onAddClick} className="gap-2">
+          <Button onClick={onAddClick} className="gap-2 w-full sm:w-auto">
             <Plus className="size-4" />
             {addButtonLabel}
           </Button>
         )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      {/* Mobile Card View */}
+      <div className="block md:hidden space-y-3">
+        {filteredData.length === 0 ? (
+          <div className="rounded-lg border border-border bg-card p-6 text-center text-muted-foreground">
+            Ma&apos;lumot topilmadi
+          </div>
+        ) : (
+          filteredData.map((item) => (
+            <div
+              key={item.id}
+              className="rounded-lg border border-border bg-card p-4 space-y-2"
+            >
+              {columns.map((column) => (
+                <div
+                  key={String(column.key)}
+                  className="flex flex-col sm:flex-row sm:justify-between"
+                >
+                  <span className="text-xs font-semibold text-muted-foreground uppercase">
+                    {column.header}
+                  </span>
+                  <span className="text-sm font-medium">
+                    {column.render
+                      ? column.render(item)
+                      : String(item[column.key as keyof T] ?? "")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-hidden rounded-2xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow className="border-border bg-secondary/30 hover:bg-secondary/30">

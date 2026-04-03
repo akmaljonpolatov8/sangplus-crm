@@ -341,10 +341,10 @@ export default function GroupsPage() {
   if (!canAccess) return null;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen w-full">
       <DashboardHeader title="Guruhlar" />
 
-      <div className="space-y-4 p-6">
+      <div className="w-full space-y-4 px-4 py-4 sm:p-6">
         {error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
             {error}
@@ -366,7 +366,7 @@ export default function GroupsPage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="w-full max-h-[90vh] overflow-y-auto sm:max-w-xl rounded-lg sm:rounded-lg">
           <DialogHeader>
             <DialogTitle>
               {formData.id ? "Guruhni tahrirlash" : "Yangi guruh"}
