@@ -118,24 +118,60 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    await requireUser(request, [Role.OWNER, Role.MANAGER]);
+    const actor = await requireUser(request, [
+      Role.OWNER,
+      Role.MANAGER,
+      Role.TEACHER,
+    ]);
     const { groupIds, ...studentData } = await parseJson(
       request,
       createStudentSchema,
     );
-    const uniqueGroupIds = uniqueValues(groupIds);
+    let uniqueGroupIds = uniqueValues(groupIds);
 
-    if (uniqueGroupIds.length > 0) {
-      const groupsCount = await db.group.count({
-        where: {
-          id: {
-            in: uniqueGroupIds,
-          },
-        },
+    // For TEACHER: auto-link to their group, ensure no group specified or it's their own
+    if (actor.role === Role.TEACHER) {
+      const teacherGroups = await db.group.findMany({
+        where: { teacherId: actor.id },
+        select: { id: true },
       });
 
-      if (groupsCount !== uniqueGroupIds.length) {
-        return jsonError(400, "One or more groups do not exist");
+      const teacherGroupIds = teacherGroups.map((g) => g.id);
+
+      // If teacher specified groups, validate they're all their own
+      if (uniqueGroupIds.length > 0) {
+        const allOwnGroups = uniqueGroupIds.every((gid) =>
+          teacherGroupIds.includes(gid),
+        );
+        if (!allOwnGroups) {
+          return jsonError(403, "You can only add students to your own groups");
+        }
+      } else {
+        // If no groups specified, use error (teacher must specify a group)
+        if (teacherGroupIds.length === 0) {
+          return jsonError(400, "You have no groups to add students to");
+        }
+        // For teacher with single group, default to it; otherwise require selection
+        if (teacherGroupIds.length === 1) {
+          uniqueGroupIds = teacherGroupIds;
+        } else {
+          return jsonError(400, "Please select a group for the student");
+        }
+      }
+    } else {
+      // OWNER/MANAGER: validate all specified groups exist
+      if (uniqueGroupIds.length > 0) {
+        const groupsCount = await db.group.count({
+          where: {
+            id: {
+              in: uniqueGroupIds,
+            },
+          },
+        });
+
+        if (groupsCount !== uniqueGroupIds.length) {
+          return jsonError(400, "One or more groups do not exist");
+        }
       }
     }
 

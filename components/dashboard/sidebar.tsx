@@ -86,6 +86,12 @@ const allNavigation: NavItem[] = [
 
 const teacherNavigation: NavItem[] = [
   {
+    name: "O'quvchilar",
+    href: "/dashboard/teacher-students",
+    icon: GraduationCap,
+    feature: "teacher-students",
+  },
+  {
     name: "Darslar",
     href: "/dashboard/lessons",
     icon: BookOpen,

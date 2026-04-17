@@ -331,6 +331,8 @@ export const studentsAPI = {
   update: (id: string, data: Record<string, unknown>) =>
     apiPatch(`/api/students/${id}`, data),
   delete: (id: string) => apiDelete(`/api/students/${id}`),
+  removeFromGroup: (id: string, groupId: string) =>
+    apiDelete(`/api/students/${id}?groupId=${encodeURIComponent(groupId)}`),
 };
 
 export const teachersAPI = {

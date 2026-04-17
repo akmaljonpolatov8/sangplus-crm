@@ -161,18 +161,95 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireUser(request, [Role.OWNER, Role.MANAGER]);
+    const actor = await requireUser(request, [
+      Role.OWNER,
+      Role.MANAGER,
+      Role.TEACHER,
+    ]);
 
     const { id } = paramsSchema.parse(await params);
     const student = await db.student.findUnique({
       where: { id },
-      select: { id: true, firstName: true, lastName: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        groups: {
+          select: {
+            id: true,
+            groupId: true,
+            leftAt: true,
+          },
+        },
+      },
     });
 
     if (!student) {
       return jsonError(404, "Student not found");
     }
 
+    // TEACHER: remove from group (unlink only)
+    if (actor.role === Role.TEACHER) {
+      const groupIdParam = new URL(request.url).searchParams.get("groupId");
+
+      if (!groupIdParam) {
+        return jsonError(400, "groupId parameter is required for teacher");
+      }
+
+      // Verify the group belongs to this teacher
+      const group = await db.group.findFirst({
+        where: {
+          id: groupIdParam,
+          teacherId: actor.id,
+        },
+        select: { id: true },
+      });
+
+      if (!group) {
+        return jsonError(
+          403,
+          "You can only remove students from your own groups",
+        );
+      }
+
+      // Find the GroupStudent record
+      const membershipToRemove = student.groups.find(
+        (g) => g.groupId === groupIdParam,
+      );
+
+      if (!membershipToRemove) {
+        return jsonError(404, "Student is not in this group");
+      }
+
+      // Mark as left (soft delete)
+      await db.groupStudent.update({
+        where: { id: membershipToRemove.id },
+        data: { leftAt: new Date() },
+      });
+
+      // If student has no other active groups, mark as INACTIVE
+      const otherActiveGroups = student.groups.filter(
+        (g) => g.leftAt === null && g.groupId !== groupIdParam,
+      );
+
+      if (otherActiveGroups.length === 0) {
+        await db.student.update({
+          where: { id },
+          data: { status: StudentStatus.INACTIVE },
+        });
+      }
+
+      return jsonSuccess(
+        {
+          id: student.id,
+          removed: true,
+          message: "Student removed from group",
+        },
+        "Student removed from group successfully",
+      );
+    }
+
+    // OWNER/MANAGER: full cascading delete
     await db.$transaction([
       db.attendance.deleteMany({
         where: {
