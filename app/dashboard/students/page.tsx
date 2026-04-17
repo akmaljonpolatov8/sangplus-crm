@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { DataTable } from "@/components/dashboard/data-table";
@@ -186,7 +186,6 @@ export default function StudentsPage() {
   useEffect(() => {
     if (!canAccess) return;
     loadStudents(debouncedSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess, debouncedSearch]);
 
   useEffect(() => {
@@ -207,7 +206,7 @@ export default function StudentsPage() {
     await loadGroups();
   };
 
-  const openEdit = async (student: StudentRecord) => {
+  const openEdit = useCallback(async (student: StudentRecord) => {
     setFormData({
       id: student.id,
       fullName: `${student.firstName || ""} ${student.lastName || ""}`.trim(),
@@ -222,7 +221,7 @@ export default function StudentsPage() {
     setFormError(null);
     setIsDialogOpen(true);
     await loadGroups();
-  };
+  }, []);
 
   const submitStudent = async () => {
     setIsSaving(true);
@@ -364,7 +363,7 @@ export default function StudentsPage() {
         ),
       },
     ],
-    [],
+    [openEdit],
   );
 
   if (!canAccess) return null;

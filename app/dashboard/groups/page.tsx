@@ -162,7 +162,6 @@ export default function GroupsPage() {
   useEffect(() => {
     if (!canAccess) return;
     loadData(debouncedSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess, debouncedSearch]);
 
   useEffect(() => {
@@ -172,8 +171,7 @@ export default function GroupsPage() {
     }
     clearLegacyDashboardCache();
     loadData(debouncedSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess]);
+  }, [canAccess, debouncedSearch, router]);
 
   const openCreate = () => {
     setFormData(initialForm);
@@ -377,7 +375,7 @@ export default function GroupsPage() {
                   className="text-destructive focus:text-destructive"
                 >
                   <Trash2 className="mr-2 size-4" />
-                  O'chirish
+                  O&apos;chirish
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -620,7 +618,7 @@ export default function GroupsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Guruhni o'chirish</AlertDialogTitle>
+            <AlertDialogTitle>Guruhni o&apos;chirish</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <span className="flex items-center gap-2 font-medium text-foreground">
                 <CircleAlert className="size-4 text-destructive" />
@@ -628,14 +626,14 @@ export default function GroupsPage() {
               </span>
               <span className="block">
                 &laquo;{groupToDelete?.name || "Tanlangan guruh"}&raquo;
-                guruhini o'chirishni xohlaysizmi?
+                guruhini o&apos;chirishni xohlaysizmi?
               </span>
               <span className="block">
-                Bu guruhga tegishli barcha darslar, davomat va to'lov
-                ma'lumotlari ham o'chiriladi.
+                Bu guruhga tegishli barcha darslar, davomat va to&apos;lov
+                ma&apos;lumotlari ham o&apos;chiriladi.
               </span>
               <span className="block font-semibold text-destructive">
-                Bu amalni qaytarib bo'lmaydi!
+                Bu amalni qaytarib bo&apos;lmaydi!
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -649,7 +647,7 @@ export default function GroupsPage() {
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Ha, o'chirish
+              Ha, o&apos;chirish
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

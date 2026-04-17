@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { DataTable } from "@/components/dashboard/data-table";
@@ -162,7 +162,6 @@ export default function TeachersPage() {
   useEffect(() => {
     if (!canAccess) return;
     loadTeachers(debouncedSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess, debouncedSearch]);
 
   useEffect(() => {
@@ -182,7 +181,7 @@ export default function TeachersPage() {
     await loadGroups();
   };
 
-  const openEdit = async (teacher: TeacherRecord) => {
+  const openEdit = useCallback(async (teacher: TeacherRecord) => {
     setFormData({
       id: teacher.id,
       username: teacher.username || "",
@@ -195,7 +194,7 @@ export default function TeachersPage() {
     setFormError(null);
     setIsDialogOpen(true);
     await loadGroups();
-  };
+  }, []);
 
   const generatePassword = () => {
     const chars =
@@ -207,7 +206,7 @@ export default function TeachersPage() {
     setLoginForm((prev) => ({ ...prev, password }));
   };
 
-  const openCreateLogin = (teacher?: TeacherRecord) => {
+  const openCreateLogin = useCallback((teacher?: TeacherRecord) => {
     const baseName = teacher?.fullName || "";
     const suggestedUsername =
       teacher?.username ||
@@ -225,7 +224,7 @@ export default function TeachersPage() {
     setCreatedCredentials(null);
     setLoginFormError(null);
     setIsLoginDialogOpen(true);
-  };
+  }, []);
 
   const submitCreateLogin = async () => {
     if (!loginForm.fullName.trim()) {
@@ -397,7 +396,7 @@ export default function TeachersPage() {
         ),
       },
     ],
-    [],
+    [openCreateLogin, openEdit],
   );
 
   if (!canAccess) return null;
@@ -478,7 +477,7 @@ export default function TeachersPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="fullName">To'liq ismi</Label>
+              <Label htmlFor="fullName">To&apos;liq ismi</Label>
               <Input
                 id="fullName"
                 placeholder="O'qituvchining to'liq ismini kiriting"

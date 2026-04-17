@@ -6,7 +6,6 @@ import { DashboardHeader } from "@/components/dashboard/header";
 import { DataTable } from "@/components/dashboard/data-table";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,7 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreHorizontal, CircleAlert, Trash2, X } from "lucide-react";
+import { MoreHorizontal, CircleAlert, Trash2 } from "lucide-react";
 import {
   ApiClientError,
   extractList,
@@ -132,7 +131,6 @@ export default function TeacherStudentsPage() {
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [groups, setGroups] = useState<GroupRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -175,7 +173,6 @@ export default function TeacherStudentsPage() {
   };
 
   const loadGroups = async () => {
-    setIsLoadingGroups(true);
     try {
       const data = await groupsAPI.list();
       setGroups(extractList<GroupRecord>(data, ["groups"]));
@@ -186,8 +183,6 @@ export default function TeacherStudentsPage() {
       }
     } catch (err) {
       console.error("Failed to load groups:", err);
-    } finally {
-      setIsLoadingGroups(false);
     }
   };
 
@@ -411,10 +406,10 @@ export default function TeacherStudentsPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="w-full max-h-[90vh] overflow-y-auto sm:max-w-md rounded-lg sm:rounded-lg">
           <DialogHeader>
-            <DialogTitle>Yangi o'quvchi</DialogTitle>
+            <DialogTitle>Yangi o&apos;quvchi</DialogTitle>
             <DialogDescription>
-              O'quvchining ismi, telefon raqami va boshqa ma'lumotlarini
-              kiriting
+              O&apos;quvchining ismi, telefon raqami va boshqa
+              ma&apos;lumotlarini kiriting
             </DialogDescription>
           </DialogHeader>
 
