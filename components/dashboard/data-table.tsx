@@ -101,7 +101,11 @@ export function DataTable<T extends { id: string | number }>({
             />
           </div>
           {showFilters && (
-            <Button variant="outline" size="default" className="gap-2 flex-shrink-0">
+            <Button
+              variant="outline"
+              size="default"
+              className="gap-2 flex-shrink-0"
+            >
               <Filter className="size-4" />
               <span className="hidden sm:inline">Filter</span>
             </Button>

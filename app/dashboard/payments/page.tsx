@@ -859,10 +859,18 @@ export default function PaymentsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
-          <Button variant="outline" onClick={openCreateModal} className="w-full sm:w-auto">
+          <Button
+            variant="outline"
+            onClick={openCreateModal}
+            className="w-full sm:w-auto"
+          >
             + To'lov qo'shish
           </Button>
-          <Button variant="outline" onClick={startGroupFlow} className="w-full sm:w-auto">
+          <Button
+            variant="outline"
+            onClick={startGroupFlow}
+            className="w-full sm:w-auto"
+          >
             + Guruh to'lovi
           </Button>
         </div>

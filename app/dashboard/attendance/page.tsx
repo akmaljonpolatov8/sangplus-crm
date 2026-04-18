@@ -346,7 +346,9 @@ export default function AttendancePage() {
                 <h2 className="mt-1 text-lg sm:text-2xl font-semibold text-white">
                   {selectedGroupName}
                 </h2>
-                <p className="mt-1 text-xs sm:text-sm text-slate-400">{formattedDate}</p>
+                <p className="mt-1 text-xs sm:text-sm text-slate-400">
+                  {formattedDate}
+                </p>
                 <p className="mt-2 text-xs tracking-wide text-slate-500">
                   Belgilanganlar: {completion.completed}/{completion.total}
                 </p>
@@ -497,7 +499,9 @@ export default function AttendancePage() {
                           aria-pressed={isActive}
                         >
                           <span className="text-sm">{optionTheme.icon}</span>
-                          <span className="hidden sm:inline">{option.label}</span>
+                          <span className="hidden sm:inline">
+                            {option.label}
+                          </span>
                         </button>
                       );
                     })}
