@@ -81,7 +81,8 @@ interface GroupRecord {
 
 interface StudentForm {
   id?: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   phone: string;
   parentPhone: string;
   parentName: string;
@@ -91,7 +92,8 @@ interface StudentForm {
 }
 
 const initialForm: StudentForm = {
-  fullName: "",
+  firstName: "",
+  lastName: "",
   phone: "",
   parentPhone: "",
   parentName: "",
@@ -106,15 +108,6 @@ function studentStatusToBadge(
   if (value === "ACTIVE") return "active";
   if (value === "GRADUATED") return "graduated";
   return "inactive";
-}
-
-function splitFullName(value: string): { firstName: string; lastName: string } {
-  const normalized = value.trim().replace(/\s+/g, " ");
-  if (!normalized) return { firstName: "", lastName: "" };
-  const parts = normalized.split(" ");
-  const firstName = parts[0] || "";
-  const lastName = parts.slice(1).join(" ") || "-";
-  return { firstName, lastName };
 }
 
 export default function TeacherStudentsPage() {
@@ -216,9 +209,25 @@ export default function TeacherStudentsPage() {
     setFormError(null);
     setFieldErrors({});
 
-    const { firstName, lastName } = splitFullName(formData.fullName);
-
     try {
+      if (!formData.firstName.trim()) {
+        setFormError("Ismi maydonini to'ldiring");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!formData.lastName.trim()) {
+        setFormError("Familiyasi maydonini to'ldiring");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!formData.phone.trim()) {
+        setFormError("Telefon raqam maydonini to'ldiring");
+        setIsSaving(false);
+        return;
+      }
+
       if (!formData.groupId) {
         setFormError("Iltimos, guruhi tanlang");
         setIsSaving(false);
@@ -226,12 +235,12 @@ export default function TeacherStudentsPage() {
       }
 
       const payload = {
-        firstName,
-        lastName,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
         phone: formData.phone.trim(),
-        parentPhone: formData.parentPhone.trim() || null,
-        parentName: formData.parentName.trim() || null,
-        notes: formData.notes.trim() || null,
+        parentPhone: formData.parentPhone.trim() || undefined,
+        parentName: formData.parentName.trim() || undefined,
+        notes: formData.notes.trim() || undefined,
         status: formData.status,
         groupIds: [formData.groupId],
       };
@@ -420,26 +429,45 @@ export default function TeacherStudentsPage() {
               </div>
             )}
 
-            <div className="space-y-1">
-              <Label htmlFor="fullName">Ism familiya</Label>
-              <Input
-                id="fullName"
-                placeholder="Ismi va familiyasi"
-                value={formData.fullName}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, fullName: e.target.value }))
-                }
-              />
-              {fieldErrors.firstName && (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.firstName}
-                </p>
-              )}
-              {fieldErrors.lastName && (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.lastName}
-                </p>
-              )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="firstName">Ismi</Label>
+                <Input
+                  id="firstName"
+                  placeholder="Ismi"
+                  value={formData.firstName}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      firstName: e.target.value,
+                    }))
+                  }
+                />
+                {fieldErrors.firstName && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.firstName}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="lastName">Familiyasi</Label>
+                <Input
+                  id="lastName"
+                  placeholder="Familiyasi"
+                  value={formData.lastName}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      lastName: e.target.value,
+                    }))
+                  }
+                />
+                {fieldErrors.lastName && (
+                  <p className="text-xs text-destructive">
+                    {fieldErrors.lastName}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-1">
