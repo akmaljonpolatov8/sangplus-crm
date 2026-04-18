@@ -9,6 +9,7 @@ import {
   uniqueValues,
 } from "@/lib/api";
 import { db } from "@/lib/db";
+import { addEskizContact } from "@/lib/eskiz";
 import { optionalPhoneSchema, requiredPhoneSchema } from "@/lib/validation";
 import { z } from "zod";
 
@@ -218,6 +219,17 @@ export async function POST(request: Request) {
         },
       });
     });
+
+    const contactName = `${studentData.firstName} ${studentData.lastName} ota-ona`;
+    void addEskizContact(contactName, studentData.parentPhone).catch(
+      (error) => {
+        console.error("Eskiz contact add failed", {
+          studentId: student.id,
+          parentPhone: studentData.parentPhone,
+          error,
+        });
+      },
+    );
 
     return jsonSuccess(student, "Student created successfully", 201);
   } catch (error) {

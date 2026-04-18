@@ -380,11 +380,14 @@ export const smsAPI = {
     parentPhone: string;
     message: string;
     type?: string;
+    month?: string;
+    forceResend?: boolean;
   }) => apiPost("/api/sms/send", data),
-  history: (params: { studentId: string; limit?: number }) => {
+  history: (params: { studentId: string; limit?: number; month?: string }) => {
     const search = new URLSearchParams();
     search.set("studentId", params.studentId);
     if (params.limit) search.set("limit", String(params.limit));
+    if (params.month) search.set("month", params.month);
     return apiGet(`/api/sms/send?${search.toString()}`);
   },
 };

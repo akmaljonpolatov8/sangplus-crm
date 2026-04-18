@@ -250,33 +250,45 @@ export async function DELETE(
     }
 
     // OWNER/MANAGER: full cascading delete
-    await db.$transaction([
-      db.attendance.deleteMany({
+    await db.$transaction(async (tx) => {
+      const smsLogDelegate = (
+        tx as unknown as {
+          smsLog: {
+            deleteMany: (args: unknown) => Promise<unknown>;
+          };
+        }
+      ).smsLog;
+
+      await tx.attendance.deleteMany({
         where: {
           studentId: id,
         },
-      }),
-      db.payment.deleteMany({
+      });
+
+      await tx.payment.deleteMany({
         where: {
           studentId: id,
         },
-      }),
-      db.smsLog.deleteMany({
+      });
+
+      await smsLogDelegate.deleteMany({
         where: {
           studentId: id,
         },
-      }),
-      db.groupStudent.deleteMany({
+      });
+
+      await tx.groupStudent.deleteMany({
         where: {
           studentId: id,
         },
-      }),
-      db.student.delete({
+      });
+
+      await tx.student.delete({
         where: {
           id,
         },
-      }),
-    ]);
+      });
+    });
 
     return jsonSuccess(
       {

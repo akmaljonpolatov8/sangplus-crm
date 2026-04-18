@@ -1,13 +1,11 @@
 "use client";
-/* eslint-disable react/no-unescaped-entities */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquareMore } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  ApiClientError,
   extractList,
   getApiErrorMessage,
   groupsAPI,
@@ -62,7 +61,8 @@ interface DebtorItem {
   billingMonth: string;
   dueDate: string;
   daysOverdue: number;
-  smsSentToday?: boolean;
+  smsSentThisMonth?: boolean;
+  smsLastSentAt?: string | null;
   amount?: number;
 }
 
@@ -77,13 +77,18 @@ interface SmsHistoryItem {
 
 interface SmsModalState {
   isOpen: boolean;
+  forceResend: boolean;
+  month: string;
   studentId: string;
   studentName: string;
   parentPhone: string;
   message: string;
 }
 
-const CENTER_PHONE = process.env.NEXT_PUBLIC_CENTER_PHONE || "+998900000000";
+interface ResendConfirmState {
+  isOpen: boolean;
+  item: DebtorItem | null;
+}
 
 function formatMonthLabel(value: string): string {
   const date = new Date(value);
@@ -97,16 +102,12 @@ function formatMonthLabel(value: string): string {
 function buildSmsTemplate(item: DebtorItem): string {
   const parentName = item.parentName?.trim() || "ota-ona";
   const billingMonthLabel = formatMonthLabel(item.billingMonth);
-  const currentMonthLabel = formatMonthLabel(new Date().toISOString());
   const amountLabel =
     item.amount != null
       ? formatCurrency(item.amount).replace(" so'm", "")
       : "belgilangan";
 
-  return `Assalomu alaykum, ${parentName}!\nFarzandingiz ${item.studentName}ning ${billingMonthLabel} oyi uchun ${amountLabel} so'm to'lovi amalga oshirilmagan.\nIltimos, to'lovni ${currentMonthLabel} oyining oxirigacha amalga oshiring.\nSangPlus o'quv markazi. Tel: ${CENTER_PHONE}`.slice(
-    0,
-    160,
-  );
+  return `Hurmatli ${parentName}! Farzandingiz ${item.studentName}ning ${billingMonthLabel} oyi uchun ${amountLabel} so'm to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. SangPlus o'quv markazi.`;
 }
 
 export default function DebtorsPage() {
@@ -122,18 +123,22 @@ export default function DebtorsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSendingSms, setIsSendingSms] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
 
   const [smsModal, setSmsModal] = useState<SmsModalState>({
     isOpen: false,
+    forceResend: false,
+    month: new Date().toISOString(),
     studentId: "",
     studentName: "",
     parentPhone: "",
     message: "",
   });
 
-  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [resendConfirm, setResendConfirm] = useState<ResendConfirmState>({
+    isOpen: false,
+    item: null,
+  });
+
   const [historyModal, setHistoryModal] = useState({
     open: false,
     studentName: "",
@@ -143,7 +148,7 @@ export default function DebtorsPage() {
 
   const [sentAtMap, setSentAtMap] = useState<Record<string, string>>({});
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -157,13 +162,12 @@ export default function DebtorsPage() {
 
       setGroups(extractList<GroupItem>(groupsData, ["groups"]));
       setDebtors(extractList<DebtorItem>(debtorsData, ["debtors"]));
-      setSelectedStudentIds([]);
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [groupId]);
 
   useEffect(() => {
     if (!canAccess) {
@@ -171,8 +175,7 @@ export default function DebtorsPage() {
       return;
     }
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, groupId]);
+  }, [canAccess, load, router]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -189,36 +192,28 @@ export default function DebtorsPage() {
     );
   }, [debtors, search]);
 
-  const selectedRows = useMemo(
-    () =>
-      filtered.filter((item) => selectedStudentIds.includes(item.studentId)),
-    [filtered, selectedStudentIds],
-  );
-
-  const toggleStudent = (studentId: string, checked: boolean) => {
-    setSelectedStudentIds((prev) =>
-      checked
-        ? [...new Set([...prev, studentId])]
-        : prev.filter((id) => id !== studentId),
-    );
-  };
-
-  const toggleAllVisible = (checked: boolean) => {
-    if (!checked) {
-      setSelectedStudentIds([]);
-      return;
-    }
-    setSelectedStudentIds(filtered.map((item) => item.studentId));
-  };
-
-  const openSmsModal = (item: DebtorItem) => {
+  const openSmsModal = (item: DebtorItem, forceResend: boolean) => {
     setSmsModal({
       isOpen: true,
+      forceResend,
+      month: item.billingMonth,
       studentId: item.studentId,
       studentName: item.studentName,
       parentPhone: item.parentPhone || "",
       message: buildSmsTemplate(item),
     });
+  };
+
+  const handleOpenSms = (item: DebtorItem) => {
+    if (item.smsSentThisMonth || sentAtMap[item.studentId]) {
+      setResendConfirm({
+        isOpen: true,
+        item,
+      });
+      return;
+    }
+
+    openSmsModal(item, false);
   };
 
   const sendSms = async () => {
@@ -231,6 +226,8 @@ export default function DebtorsPage() {
         parentPhone: smsModal.parentPhone.trim(),
         message: smsModal.message.trim(),
         type: "PAYMENT_REMINDER",
+        month: smsModal.month,
+        forceResend: smsModal.forceResend,
       })) as { sentAt?: string };
 
       toast({ title: "SMS yuborildi! ✓" });
@@ -241,50 +238,22 @@ export default function DebtorsPage() {
         }));
       }
       setSmsModal((prev) => ({ ...prev, isOpen: false }));
+      setResendConfirm({ isOpen: false, item: null });
       await load();
     } catch (err) {
+      if (err instanceof ApiClientError && err.status === 409) {
+        const modalItem = debtors.find(
+          (item) => item.studentId === smsModal.studentId,
+        );
+        if (modalItem) {
+          setResendConfirm({
+            isOpen: true,
+            item: modalItem,
+          });
+        }
+      }
       toast({
         title: "SMS yuborishda xatolik",
-        description: getApiErrorMessage(err),
-        variant: "destructive",
-      });
-    } finally {
-      setIsSendingSms(false);
-    }
-  };
-
-  const sendBulkSms = async () => {
-    if (selectedRows.length === 0) return;
-
-    setIsSendingSms(true);
-    setBulkProgress({ done: 0, total: selectedRows.length });
-
-    try {
-      for (let index = 0; index < selectedRows.length; index += 1) {
-        const item = selectedRows[index];
-        const result = (await smsAPI.send({
-          studentId: item.studentId,
-          parentPhone: item.parentPhone || "",
-          message: buildSmsTemplate(item),
-          type: "PAYMENT_REMINDER",
-        })) as { sentAt?: string };
-
-        if (result?.sentAt) {
-          setSentAtMap((prev) => ({
-            ...prev,
-            [item.studentId]: result.sentAt!,
-          }));
-        }
-
-        setBulkProgress({ done: index + 1, total: selectedRows.length });
-      }
-
-      toast({ title: "Tanlanganlarga SMS yuborildi!" });
-      setBulkModalOpen(false);
-      await load();
-    } catch (err) {
-      toast({
-        title: "Bulk SMS yuborishda xatolik",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });
@@ -315,9 +284,6 @@ export default function DebtorsPage() {
   };
 
   if (!canAccess) return null;
-
-  const allChecked =
-    filtered.length > 0 && selectedStudentIds.length === filtered.length;
 
   return (
     <div className="min-h-screen">
@@ -363,20 +329,6 @@ export default function DebtorsPage() {
           </CardContent>
         </Card>
 
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">
-            Tanlanganlar: {selectedStudentIds.length}
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={selectedStudentIds.length === 0 || isSendingSms}
-            onClick={() => setBulkModalOpen(true)}
-          >
-            Tanlanganlarga SMS yuborish
-          </Button>
-        </div>
-
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Yuklanmoqda...</p>
         ) : filtered.length === 0 ? (
@@ -390,33 +342,19 @@ export default function DebtorsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={allChecked}
-                      onCheckedChange={(v) => toggleAllVisible(Boolean(v))}
-                    />
-                  </TableHead>
-                  <TableHead>O'quvchi ismi</TableHead>
+                  <TableHead>O&apos;quvchi ismi</TableHead>
                   <TableHead>Guruh</TableHead>
                   <TableHead>Ota-ona telefoni</TableHead>
                   {canViewAmounts ? (
-                    <TableHead>Qarzdorlik miqdori</TableHead>
+                    <TableHead>Oylik to&apos;lov</TableHead>
                   ) : null}
-                  <TableHead>Qarzdorlik muddati</TableHead>
-                  <TableHead className="text-right">SMS</TableHead>
+                  <TableHead>SMS holati</TableHead>
+                  <TableHead className="text-right">Amal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((item) => (
                   <TableRow key={item.paymentId}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedStudentIds.includes(item.studentId)}
-                        onCheckedChange={(v) =>
-                          toggleStudent(item.studentId, Boolean(v))
-                        }
-                      />
-                    </TableCell>
                     <TableCell className="font-medium">
                       <button
                         type="button"
@@ -446,33 +384,37 @@ export default function DebtorsPage() {
                           : formatCurrency(item.amount)}
                       </TableCell>
                     ) : null}
-                    <TableCell className="text-destructive">
-                      {item.daysOverdue} kun
+                    <TableCell>
+                      {item.smsSentThisMonth || sentAtMap[item.studentId] ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600">
+                          <MessageSquareMore className="size-3" />
+                          Yuborildi{" "}
+                          {new Date(
+                            sentAtMap[item.studentId] ||
+                              item.smsLastSentAt ||
+                              "",
+                          ).toLocaleDateString("uz-UZ")}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-red-500/10 px-2 py-1 text-xs text-red-600">
+                          Yuborilmagan
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {item.smsSentToday || sentAtMap[item.studentId] ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600">
-                            <MessageSquareMore className="size-3" />
-                            SMS yuborildi{" "}
-                            {sentAtMap[item.studentId]
-                              ? new Date(
-                                  sentAtMap[item.studentId],
-                                ).toLocaleTimeString("uz-UZ", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "bugun"}
-                          </span>
-                        ) : null}
-                        <Button
-                          type="button"
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                          onClick={() => openSmsModal(item)}
-                        >
-                          SMS
-                        </Button>
-                      </div>
+                      <Button
+                        type="button"
+                        className={
+                          item.smsSentThisMonth || sentAtMap[item.studentId]
+                            ? "bg-orange-500 hover:bg-orange-600"
+                            : "bg-emerald-600 hover:bg-emerald-700"
+                        }
+                        onClick={() => handleOpenSms(item)}
+                      >
+                        {item.smsSentThisMonth || sentAtMap[item.studentId]
+                          ? "Qayta yuborish"
+                          : "SMS yuborish"}
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -492,7 +434,7 @@ export default function DebtorsPage() {
           <DialogHeader>
             <DialogTitle>SMS yuborish - {smsModal.studentName}</DialogTitle>
             <DialogDescription>
-              Xabar uzunligi: {smsModal.message.length}/160
+              To: {smsModal.parentPhone || "raqam kiritilmagan"}
             </DialogDescription>
           </DialogHeader>
 
@@ -517,7 +459,6 @@ export default function DebtorsPage() {
               <Textarea
                 id="sms-message"
                 rows={6}
-                maxLength={160}
                 value={smsModal.message}
                 onChange={(event) =>
                   setSmsModal((prev) => ({
@@ -550,33 +491,45 @@ export default function DebtorsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={bulkModalOpen} onOpenChange={setBulkModalOpen}>
+      <Dialog
+        open={resendConfirm.isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResendConfirm({ isOpen: false, item: null });
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Bulk SMS yuborish</DialogTitle>
+            <DialogTitle>Qayta yuborishni tasdiqlang</DialogTitle>
             <DialogDescription>
-              {selectedRows.length} ta ota-onaga SMS yuboriladi
+              Bu ota-onaga{" "}
+              {resendConfirm.item?.smsLastSentAt
+                ? new Date(resendConfirm.item.smsLastSentAt).toLocaleDateString(
+                    "uz-UZ",
+                  )
+                : "shu oy"}{" "}
+              da SMS yuborilgan. Qayta yubormoqchimisiz?
             </DialogDescription>
           </DialogHeader>
-          <div className="text-sm text-muted-foreground">
-            {isSendingSms
-              ? `${bulkProgress.done} / ${bulkProgress.total} yuborildi`
-              : "Tasdiqlasangiz yuborish boshlanadi."}
-          </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setBulkModalOpen(false)}
+              onClick={() => setResendConfirm({ isOpen: false, item: null })}
               disabled={isSendingSms}
             >
               Bekor qilish
             </Button>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
-              onClick={sendBulkSms}
-              disabled={isSendingSms || selectedRows.length === 0}
+              className="bg-orange-500 hover:bg-orange-600"
+              onClick={() => {
+                if (!resendConfirm.item) return;
+                openSmsModal(resendConfirm.item, true);
+                setResendConfirm({ isOpen: false, item: null });
+              }}
+              disabled={isSendingSms || !resendConfirm.item}
             >
-              {isSendingSms ? "Yuborilmoqda..." : "Yuborish"}
+              Ha, qayta yuborish
             </Button>
           </DialogFooter>
         </DialogContent>
